@@ -122,7 +122,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
   const availableDrivers = drivers.filter(d => d.availability_status === 'available')
 
   return (
-    <div className="p-6 max-w-7xl">
+    <div className="p-4 sm:p-6 max-w-7xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -180,15 +180,18 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             const driver = drivers.find(d => d.id === job.driver_id)
             return (
               <div key={job.id} className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-sm transition-shadow">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     {/* Route */}
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="w-4 h-4 text-green-500 flex-shrink-0" />
-                      <span className="font-medium text-gray-800 truncate">{job.pickup_address}</span>
-                      <span className="text-gray-400 flex-shrink-0">→</span>
-                      <MapPin className="w-4 h-4 text-red-500 flex-shrink-0" />
-                      <span className="text-gray-600 truncate">{job.dropoff_address}</span>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        <span className="font-medium text-gray-800 truncate">{job.pickup_address}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        <span className="text-gray-600 truncate">{job.dropoff_address}</span>
+                      </div>
                     </div>
 
                     {/* Meta */}
@@ -218,7 +221,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                   </div>
 
                   {/* Right: status + actions */}
-                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                  <div className="flex flex-row sm:flex-col items-start sm:items-end gap-2 flex-shrink-0 flex-wrap">
                     <Badge className={jobStatusColor(job.status)}>
                       {job.status.replace('_', ' ')}
                     </Badge>
@@ -290,7 +293,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Date *</label>
               <input
@@ -311,7 +314,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Price (£)</label>
               <input

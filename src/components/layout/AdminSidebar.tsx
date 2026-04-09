@@ -11,6 +11,7 @@ import {
   Map,
   LogOut,
   ChevronRight,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -24,7 +25,11 @@ const NAV_ITEMS = [
   { href: '/dashboard/admin/map',      label: 'Map View',    icon: Map },
 ]
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  onClose?: () => void
+}
+
+export function AdminSidebar({ onClose }: AdminSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -36,9 +41,9 @@ export function AdminSidebar() {
   }
 
   return (
-    <aside className="w-60 min-h-screen bg-gray-950 flex flex-col border-r border-gray-800">
+    <aside className="w-60 h-full min-h-screen bg-gray-950 flex flex-col border-r border-gray-800">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-gray-800">
+      <div className="px-5 py-5 border-b border-gray-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -48,12 +53,20 @@ export function AdminSidebar() {
           </div>
           <span className="font-semibold text-white text-sm">[PLATFORM]</span>
         </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden text-gray-400 hover:text-white p-1"
+            aria-label="Close menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {NAV_ITEMS.map(item => {
-          // Exact match for overview, prefix match for others
           const isActive = item.href === '/dashboard/admin'
             ? pathname === item.href
             : pathname.startsWith(item.href)
@@ -62,6 +75,7 @@ export function AdminSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                 isActive

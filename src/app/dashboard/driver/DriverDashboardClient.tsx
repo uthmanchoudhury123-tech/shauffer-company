@@ -90,7 +90,7 @@ export function DriverDashboardClient({
   }
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-4 sm:p-6 max-w-4xl">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
@@ -101,7 +101,7 @@ export function DriverDashboardClient({
 
       {/* Driver Status Card */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
             {/* Avatar */}
             <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">

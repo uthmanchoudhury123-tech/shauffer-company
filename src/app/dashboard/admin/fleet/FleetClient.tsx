@@ -128,7 +128,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
   }
 
   return (
-    <div className="p-6 max-w-7xl">
+    <div className="p-4 sm:p-6 max-w-7xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -278,7 +278,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
         size="lg"
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Make *</label>
               <input
@@ -297,7 +297,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Year *</label>
               <input
@@ -324,7 +324,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Car Type *</label>
               <select
@@ -350,7 +350,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
               Compliance Dates (alerts at 30 days)
             </p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[
                 { key: 'mot_date', label: 'MOT Date' },
                 { key: 'service_date', label: 'Service Date' },

@@ -125,9 +125,9 @@ export function MapClient({ drivers, mapboxToken }: MapClientProps) {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col lg:flex-row h-full">
       {/* Map */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative min-h-[50vh] lg:min-h-0">
         <div ref={mapContainerRef} className="w-full h-full" />
 
         {/* Selected driver popup */}
@@ -156,7 +156,7 @@ export function MapClient({ drivers, mapboxToken }: MapClientProps) {
       </div>
 
       {/* Driver List Sidebar */}
-      <div className="w-64 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
+      <div className="w-full lg:w-64 h-48 lg:h-auto bg-white border-t lg:border-t-0 lg:border-l border-gray-200 flex flex-col overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
             <Users className="w-4 h-4" /> Drivers ({drivers.length})

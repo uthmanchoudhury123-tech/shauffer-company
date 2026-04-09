@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { DriverSidebar } from '@/components/layout/DriverSidebar'
+import { DriverShell } from '@/components/layout/DriverShell'
 
 export default async function DriverLayout({
   children,
@@ -23,12 +23,5 @@ export default async function DriverLayout({
     redirect('/dashboard/admin')
   }
 
-  return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
-      <DriverSidebar driverName={profile?.full_name ?? 'Driver'} />
-      <main className="flex-1 overflow-y-auto">
-        {children}
-      </main>
-    </div>
-  )
+  return <DriverShell driverName={profile?.full_name ?? 'Driver'}>{children}</DriverShell>
 }

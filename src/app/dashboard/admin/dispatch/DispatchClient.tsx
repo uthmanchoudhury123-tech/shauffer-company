@@ -25,7 +25,7 @@ export function DispatchClient({ jobs, drivers }: DispatchClientProps) {
   const activeJobs    = jobs.filter(j => j.status === 'in_progress')
 
   return (
-    <div className="p-6 max-w-7xl">
+    <div className="p-4 sm:p-6 max-w-7xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <Radio className="w-6 h-6 text-blue-600" />

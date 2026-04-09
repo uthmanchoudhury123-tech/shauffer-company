@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, LogOut } from 'lucide-react'
+import { LayoutDashboard, LogOut, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
@@ -10,7 +10,12 @@ const NAV_ITEMS = [
   { href: '/dashboard/driver', label: 'My Jobs', icon: LayoutDashboard },
 ]
 
-export function DriverSidebar({ driverName }: { driverName: string }) {
+interface DriverSidebarProps {
+  driverName: string
+  onClose?: () => void
+}
+
+export function DriverSidebar({ driverName, onClose }: DriverSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -22,9 +27,9 @@ export function DriverSidebar({ driverName }: { driverName: string }) {
   }
 
   return (
-    <aside className="w-56 min-h-screen bg-gray-950 flex flex-col border-r border-gray-800">
+    <aside className="w-56 h-full min-h-screen bg-gray-950 flex flex-col border-r border-gray-800">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-gray-800">
+      <div className="px-5 py-5 border-b border-gray-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -37,6 +42,15 @@ export function DriverSidebar({ driverName }: { driverName: string }) {
             <span className="text-xs text-gray-500">Driver Portal</span>
           </div>
         </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden text-gray-400 hover:text-white p-1"
+            aria-label="Close menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Driver name */}
@@ -53,6 +67,7 @@ export function DriverSidebar({ driverName }: { driverName: string }) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                 isActive
