@@ -1,0 +1,98 @@
+// ============================================================
+// [PLATFORM] Auth Proxy (Next.js 16 — renamed from middleware)
+// Runs on every request to protect routes and handle role-based
+// redirects after login.
+// ============================================================
+
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
+
+// Routes that don't require authentication
+const PUBLIC_ROUTES = ['/auth/login', '/auth/signup', '/']
+
+// Role → default dashboard path
+const ROLE_DASHBOARD: Record<string, string> = {
+  company_admin:    '/dashboard/admin',
+  company_driver:   '/dashboard/driver',
+  freelance_driver: '/dashboard/driver',
+}
+
+export async function proxy(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({ request })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          )
+          supabaseResponse = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  // Refresh the session — IMPORTANT: do not remove this
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { pathname } = request.nextUrl
+  const isPublicRoute = PUBLIC_ROUTES.some(route => pathname === route || pathname.startsWith(route))
+
+  // Not logged in, trying to access protected route → redirect to login
+  if (!user && !isPublicRoute) {
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/auth/login'
+    loginUrl.searchParams.set('redirectTo', pathname)
+    return NextResponse.redirect(loginUrl)
+  }
+
+  // Logged in, trying to access auth pages → redirect to dashboard
+  if (user && (pathname === '/auth/login' || pathname === '/auth/signup')) {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const role = profile?.role ?? 'company_driver'
+    const dashboardPath = ROLE_DASHBOARD[role] ?? '/dashboard/driver'
+
+    const dashboardUrl = request.nextUrl.clone()
+    dashboardUrl.pathname = dashboardPath
+    return NextResponse.redirect(dashboardUrl)
+  }
+
+  // Logged in, hit root → redirect to appropriate dashboard
+  if (user && pathname === '/') {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const role = profile?.role ?? 'company_driver'
+    const dashboardPath = ROLE_DASHBOARD[role] ?? '/dashboard/driver'
+
+    const dashboardUrl = request.nextUrl.clone()
+    dashboardUrl.pathname = dashboardPath
+    return NextResponse.redirect(dashboardUrl)
+  }
+
+  return supabaseResponse
+}
+
+export const config = {
+  matcher: [
+    // Run on all routes except static assets and API routes
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+}
