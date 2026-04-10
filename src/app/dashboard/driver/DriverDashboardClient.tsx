@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Briefcase, MapPin, Clock, CheckCircle, Star,
-  AlertCircle, PlayCircle, Car
+  AlertCircle, PlayCircle, Car, Navigation, NavigationOff
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
@@ -39,6 +39,66 @@ export function DriverDashboardClient({
   )
   const [updatingAvailability, setUpdatingAvailability] = useState(false)
 
+  // Location sharing
+  const watchIdRef = useRef<number | null>(null)
+  const [locationSharing, setLocationSharing] = useState(false)
+  const [locationError, setLocationError] = useState('')
+
+  // Cleanup watcher on unmount
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current)
+      }
+    }
+  }, [])
+
+  function startLocationSharing() {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported on this device.')
+      return
+    }
+    setLocationError('')
+
+    const id = navigator.geolocation.watchPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords
+        const supabase = createClient()
+        await supabase
+          .from('drivers')
+          .update({
+            current_lat: latitude,
+            current_lng: longitude,
+            location_updated_at: new Date().toISOString(),
+          })
+          .eq('id', driverId)
+      },
+      () => {
+        setLocationError('Location access denied. Please allow location in your browser settings.')
+        stopLocationSharing()
+      },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+    )
+
+    watchIdRef.current = id
+    setLocationSharing(true)
+  }
+
+  function stopLocationSharing() {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+      watchIdRef.current = null
+    }
+    setLocationSharing(false)
+
+    // Clear location from database
+    const supabase = createClient()
+    supabase
+      .from('drivers')
+      .update({ current_lat: null, current_lng: null })
+      .eq('id', driverId)
+  }
+
   // Job counts
   const upcomingJobs = jobs.filter(j => j.status === 'assigned')
   const activeJob = jobs.find(j => j.status === 'in_progress')
@@ -68,11 +128,9 @@ export function DriverDashboardClient({
       .single()
     if (data) {
       setJobs(prev => prev.map(j => j.id === jobId ? data : j))
-      // If starting a job, update driver to on_job
       if (status === 'in_progress') {
         await updateAvailability('on_job')
       }
-      // If completing, set back to available
       if (status === 'completed') {
         const remainingActive = jobs.filter(j => j.id !== jobId && j.status === 'in_progress')
         if (remainingActive.length === 0) {
@@ -168,6 +226,44 @@ export function DriverDashboardClient({
               )}
             </div>
           </div>
+        </div>
+
+        {/* Location sharing */}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              {locationSharing ? (
+                <>
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                  </span>
+                  <span className="text-xs text-green-700 font-medium">Sharing live location</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-2.5 h-2.5 rounded-full bg-gray-300 flex-shrink-0" />
+                  <span className="text-xs text-gray-500">Location sharing off</span>
+                </>
+              )}
+            </div>
+            <button
+              onClick={locationSharing ? stopLocationSharing : startLocationSharing}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                locationSharing
+                  ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+              }`}
+            >
+              {locationSharing
+                ? <><NavigationOff className="w-3.5 h-3.5" /> Stop Sharing</>
+                : <><Navigation className="w-3.5 h-3.5" /> Share Location</>
+              }
+            </button>
+          </div>
+          {locationError && (
+            <p className="mt-2 text-xs text-red-600">{locationError}</p>
+          )}
         </div>
       </div>
 
