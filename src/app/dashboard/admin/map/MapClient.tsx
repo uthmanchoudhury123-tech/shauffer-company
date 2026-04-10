@@ -56,7 +56,7 @@ function createMarkerEl(driver: DriverMapData, onClick: () => void) {
 export function MapClient({ drivers: initialDrivers, mapboxToken }: MapClientProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
-  const markersMapRef = useRef<Map<string, mapboxgl.Marker>>(new Map())
+  const markersMapRef = useRef<Record<string, mapboxgl.Marker>>({})
   const [drivers, setDrivers] = useState<DriverMapData[]>(initialDrivers)
   const [selected, setSelected] = useState<DriverMapData | null>(null)
 
@@ -80,8 +80,8 @@ export function MapClient({ drivers: initialDrivers, mapboxToken }: MapClientPro
     mapRef.current = map
 
     return () => {
-      markersMapRef.current.forEach(m => m.remove())
-      markersMapRef.current.clear()
+      Object.values(markersMapRef.current).forEach(m => m.remove())
+      markersMapRef.current = {}
       map.remove()
     }
   }, [mapboxToken])
@@ -95,7 +95,7 @@ export function MapClient({ drivers: initialDrivers, mapboxToken }: MapClientPro
 
     // Add or update markers
     located.forEach(driver => {
-      const existing = markersMapRef.current.get(driver.id)
+      const existing = markersMapRef.current[driver.id]
       if (existing) {
         existing.setLngLat([driver.current_lng!, driver.current_lat!])
       } else {
@@ -103,20 +103,20 @@ export function MapClient({ drivers: initialDrivers, mapboxToken }: MapClientPro
         const marker = new mapboxgl.Marker({ element: el })
           .setLngLat([driver.current_lng!, driver.current_lat!])
           .addTo(map)
-        markersMapRef.current.set(driver.id, marker)
+        markersMapRef.current[driver.id] = marker
       }
     })
 
     // Remove markers for drivers who stopped sharing
-    markersMapRef.current.forEach((marker, id) => {
+    Object.entries(markersMapRef.current).forEach(([id, marker]) => {
       if (!located.find(d => d.id === id)) {
         marker.remove()
-        markersMapRef.current.delete(id)
+        delete markersMapRef.current[id]
       }
     })
 
     // Fit bounds on first load if there are located drivers and no markers existed yet
-    if (located.length > 0 && markersMapRef.current.size === located.length) {
+    if (located.length > 0 && Object.keys(markersMapRef.current).length === located.length) {
       const bounds = new mapboxgl.LngLatBounds()
       located.forEach(d => bounds.extend([d.current_lng!, d.current_lat!]))
       map.fitBounds(bounds, { padding: 80, maxZoom: 14 })
