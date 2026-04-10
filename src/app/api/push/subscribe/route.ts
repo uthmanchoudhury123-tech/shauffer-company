@@ -6,11 +6,11 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
-  // Look up driver record for this user
+  // In this schema, drivers.id = user_profiles.id = auth user id
   const { data: driver } = await supabase
     .from('drivers')
     .select('id')
-    .eq('user_id', user.id)
+    .eq('id', user.id)
     .single()
 
   if (!driver) return NextResponse.json({ error: 'Driver not found' }, { status: 404 })

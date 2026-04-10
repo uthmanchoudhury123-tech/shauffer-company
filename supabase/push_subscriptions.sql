@@ -16,8 +16,4 @@ alter table public.push_subscriptions enable row level security;
 create policy "driver owns subscription"
   on public.push_subscriptions
   for all
-  using (
-    driver_id in (
-      select id from public.drivers where user_id = auth.uid()
-    )
-  );
+  using (driver_id = auth.uid());
