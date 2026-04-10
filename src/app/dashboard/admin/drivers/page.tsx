@@ -12,11 +12,27 @@ export default async function DriversPage() {
     .eq('id', user.id)
     .single()
 
-  const { data: drivers } = await supabase
-    .from('drivers')
-    .select('*')
-    .eq('company_id', profile?.company_id)
-    .order('created_at', { ascending: false })
+  const companyId = profile?.company_id ?? ''
 
-  return <DriversClient drivers={drivers ?? []} companyId={profile?.company_id ?? ''} />
+  const [{ data: drivers }, { data: invites }] = await Promise.all([
+    supabase
+      .from('drivers')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('invites')
+      .select('id, email, status, created_at, expires_at')
+      .eq('company_id', companyId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false }),
+  ])
+
+  return (
+    <DriversClient
+      drivers={drivers ?? []}
+      companyId={companyId}
+      pendingInvites={invites ?? []}
+    />
+  )
 }

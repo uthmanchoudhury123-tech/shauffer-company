@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Users, Search, CheckCircle, Star, UserCheck, UserX } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Users, Search, CheckCircle, Star, UserCheck, UserX, UserPlus, Copy, Check, X, Mail, Link2 } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
+import { Modal } from '@/components/ui/Modal'
 import { driverStatusColor, carTypeLabel, formatDate } from '@/lib/utils'
 import type { Driver } from '@/types'
 
@@ -11,15 +13,34 @@ const CATEGORY_LABELS = {
   freelance: 'Freelance Driver',
 }
 
+interface PendingInvite {
+  id: string
+  email: string | null
+  status: string
+  created_at: string
+  expires_at: string
+}
+
 interface DriversClientProps {
   drivers: Driver[]
   companyId: string
+  pendingInvites: PendingInvite[]
 }
 
-export function DriversClient({ drivers }: DriversClientProps) {
+export function DriversClient({ drivers, companyId, pendingInvites: initialInvites }: DriversClientProps) {
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'company' | 'freelance'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'available' | 'on_job' | 'offline'>('all')
+
+  // Invite state
+  const [inviteModal, setInviteModal] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteLink, setInviteLink] = useState('')
+  const [inviting, setInviting] = useState(false)
+  const [inviteError, setInviteError] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>(initialInvites)
 
   const filtered = drivers.filter(d => {
     const matchSearch = d.full_name.toLowerCase().includes(search.toLowerCase())
@@ -32,6 +53,55 @@ export function DriversClient({ drivers }: DriversClientProps) {
   const freelanceCount = drivers.filter(d => d.driver_category === 'freelance').length
   const availableCount = drivers.filter(d => d.availability_status === 'available').length
 
+  async function handleInvite() {
+    setInviting(true)
+    setInviteError('')
+    const res = await fetch('/api/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: inviteEmail }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setInviteError(data.error ?? 'Failed to create invite')
+      setInviting(false)
+      return
+    }
+    setInviteLink(data.link)
+    setInviting(false)
+    // Add to pending list
+    setPendingInvites(prev => [{
+      id: Date.now().toString(),
+      email: inviteEmail || null,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+    }, ...prev])
+  }
+
+  async function handleCancelInvite(id: string) {
+    await fetch('/api/invite', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    setPendingInvites(prev => prev.filter(i => i.id !== id))
+    router.refresh()
+  }
+
+  function copyLink(link: string) {
+    navigator.clipboard.writeText(link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  function closeInviteModal() {
+    setInviteModal(false)
+    setInviteEmail('')
+    setInviteLink('')
+    setInviteError('')
+  }
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl">
       {/* Header */}
@@ -42,6 +112,14 @@ export function DriversClient({ drivers }: DriversClientProps) {
             {drivers.length} driver{drivers.length !== 1 ? 's' : ''} — {availableCount} available
           </p>
         </div>
+        <button
+          onClick={() => setInviteModal(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700
+                     text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          <UserPlus className="w-4 h-4" />
+          Invite Driver
+        </button>
       </div>
 
       {/* Summary Cards */}
@@ -75,6 +153,37 @@ export function DriversClient({ drivers }: DriversClientProps) {
         </div>
       </div>
 
+      {/* Pending Invites */}
+      {pendingInvites.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <Mail className="w-4 h-4 text-blue-500" />
+            Pending Invites ({pendingInvites.length})
+          </h2>
+          <div className="space-y-2">
+            {pendingInvites.map(invite => (
+              <div key={invite.id} className="flex items-center justify-between gap-3 px-4 py-2.5 bg-gray-50 rounded-lg">
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-700 truncate">
+                    {invite.email ?? <span className="text-gray-400 italic">No email — link only</span>}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Expires {new Date(invite.expires_at).toLocaleDateString('en-GB')}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleCancelInvite(invite.id)}
+                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                  title="Cancel invite"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex gap-3 mb-4 flex-wrap">
         <div className="relative flex-1 min-w-48">
@@ -88,7 +197,6 @@ export function DriversClient({ drivers }: DriversClientProps) {
                        focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-
         <select
           value={categoryFilter}
           onChange={e => setCategoryFilter(e.target.value as typeof categoryFilter)}
@@ -98,7 +206,6 @@ export function DriversClient({ drivers }: DriversClientProps) {
           <option value="company">Company Drivers</option>
           <option value="freelance">Freelance Drivers</option>
         </select>
-
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
@@ -115,11 +222,20 @@ export function DriversClient({ drivers }: DriversClientProps) {
       {filtered.length === 0 ? (
         <div className="py-16 text-center bg-white rounded-xl border border-gray-200">
           <Users className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-400 text-sm">
+          <p className="text-gray-400 text-sm mb-3">
             {search || categoryFilter !== 'all' || statusFilter !== 'all'
               ? 'No drivers match your filters.'
-              : 'No drivers yet. Drivers will appear here once they sign up and are assigned to your company.'}
+              : 'No drivers yet.'}
           </p>
+          {!search && categoryFilter === 'all' && statusFilter === 'all' && (
+            <button
+              onClick={() => setInviteModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              <UserPlus className="w-4 h-4" />
+              Invite your first driver
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -128,18 +244,96 @@ export function DriversClient({ drivers }: DriversClientProps) {
           ))}
         </div>
       )}
+
+      {/* Invite Modal */}
+      <Modal
+        isOpen={inviteModal}
+        onClose={closeInviteModal}
+        title="Invite a Driver"
+        size="sm"
+      >
+        {!inviteLink ? (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500">
+              Generate an invite link to share with your driver. They&apos;ll sign up and automatically join your company.
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Driver&apos;s Email <span className="text-gray-400">(optional)</span>
+              </label>
+              <input
+                type="email"
+                placeholder="driver@example.com"
+                value={inviteEmail}
+                onChange={e => setInviteEmail(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">If provided, pre-fills their signup form.</p>
+            </div>
+
+            {inviteError && (
+              <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{inviteError}</p>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button onClick={closeInviteModal} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg">
+                Cancel
+              </button>
+              <button
+                onClick={handleInvite}
+                disabled={inviting}
+                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium"
+              >
+                {inviting ? 'Generating...' : 'Generate Link'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+              <Check className="w-4 h-4 flex-shrink-0" />
+              <p className="text-sm font-medium">Invite link created — valid for 7 days</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Share this link</label>
+              <div className="flex gap-2">
+                <div className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 truncate font-mono">
+                  {inviteLink}
+                </div>
+                <button
+                  onClick={() => copyLink(inviteLink)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg flex-shrink-0 transition-colors"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
+                <Link2 className="w-3 h-3" />
+                Share via WhatsApp, email, or SMS
+              </p>
+            </div>
+
+            <button
+              onClick={closeInviteModal}
+              className="w-full py-2 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
 
 function DriverCard({ driver }: { driver: Driver }) {
-  // Star rating display
   const stars = Math.round(driver.rating)
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-sm transition-shadow">
       <div className="flex items-start gap-3">
-        {/* Avatar */}
         <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
           {driver.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -158,8 +352,6 @@ function DriverCard({ driver }: { driver: Driver }) {
               <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" aria-label="Verified Driver" />
             )}
           </div>
-
-          {/* Star rating */}
           <div className="flex items-center gap-1 mt-0.5">
             {[1, 2, 3, 4, 5].map(n => (
               <Star
@@ -174,7 +366,6 @@ function DriverCard({ driver }: { driver: Driver }) {
         </div>
       </div>
 
-      {/* Status and details */}
       <div className="mt-3 space-y-1.5">
         <div className="flex items-center justify-between text-xs">
           <span className="text-gray-500">Status</span>

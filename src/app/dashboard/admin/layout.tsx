@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AdminShell } from '@/components/layout/AdminShell'
+import { CompanySetupBanner } from '@/components/CompanySetupBanner'
 
 export default async function AdminLayout({
   children,
@@ -12,7 +13,6 @@ export default async function AdminLayout({
 
   if (!user) redirect('/auth/login')
 
-  // Gate: only company admins can access this layout
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('role, full_name, company_id')
@@ -23,5 +23,10 @@ export default async function AdminLayout({
     redirect('/dashboard/driver')
   }
 
-  return <AdminShell>{children}</AdminShell>
+  return (
+    <AdminShell>
+      {!profile?.company_id && <CompanySetupBanner />}
+      {children}
+    </AdminShell>
+  )
 }
