@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
+import { PushNotificationSetup } from '@/components/PushNotificationSetup'
 import { jobStatusColor, formatDate, formatCurrency, carTypeLabel } from '@/lib/utils'
 import type { Job, AvailabilityStatus } from '@/types'
 
@@ -264,6 +265,12 @@ export function DriverDashboardClient({
           {locationError && (
             <p className="mt-2 text-xs text-red-600">{locationError}</p>
           )}
+        </div>
+
+        {/* Push notifications */}
+        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-4">
+          <p className="text-xs text-gray-500">Job notifications</p>
+          <PushNotificationSetup />
         </div>
       </div>
 

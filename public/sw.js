@@ -62,3 +62,49 @@ self.addEventListener('fetch', (event) => {
     })
   )
 })
+
+// ── Push Notifications ──────────────────────────────────────────────────────
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return
+
+  let payload
+  try {
+    payload = event.data.json()
+  } catch {
+    payload = { title: 'New Job', body: event.data.text(), url: '/dashboard/driver/jobs' }
+  }
+
+  const { title = 'New Job', body = '', url = '/dashboard/driver/jobs', icon = '/icon.png' } = payload
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon,
+      badge: '/icon.png',
+      tag: 'job-notification',
+      renotify: true,
+      data: { url },
+    })
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const targetUrl = event.notification.data?.url ?? '/dashboard/driver/jobs'
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Focus existing tab if open
+      for (const client of windowClients) {
+        if (client.url.includes(targetUrl) && 'focus' in client) {
+          return client.focus()
+        }
+      }
+      // Open a new tab
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl)
+      }
+    })
+  )
+})

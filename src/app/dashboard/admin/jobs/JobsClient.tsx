@@ -85,6 +85,21 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
 
     if (err) { setError(err.message); setSaving(false); return }
     setJobs(prev => [data, ...prev])
+
+    // Notify driver if assigned at creation
+    if (form.driver_id) {
+      fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driverId: form.driver_id,
+          title: 'New Job Assigned',
+          body: `${form.pickup_address} → ${form.dropoff_address}`,
+          url: '/dashboard/driver/jobs',
+        }),
+      }).catch(() => {/* best-effort */})
+    }
+
     setSaving(false)
     setModalOpen(false)
     setForm(emptyForm)
@@ -103,6 +118,18 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
 
     if (!err && data) {
       setJobs(prev => prev.map(j => j.id === selectedJob.id ? data : j))
+
+      // Fire push notification to the assigned driver
+      fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driverId: assignDriverId,
+          title: 'New Job Assigned',
+          body: `${selectedJob.pickup_address} → ${selectedJob.dropoff_address}`,
+          url: '/dashboard/driver/jobs',
+        }),
+      }).catch(() => {/* notifications are best-effort */})
     }
     setAssignModal(false)
     setSelectedJob(null)
