@@ -38,15 +38,14 @@ export default function LoginPage() {
         .single()
 
       if (profile?.role === 'company_admin') {
-        router.push('/dashboard/admin')
+        window.location.href = '/dashboard/admin'
       } else if (profile?.role === 'freelance_driver') {
-        router.push('/dashboard/freelancer')
+        window.location.href = '/dashboard/freelancer'
       } else if (profile?.role === 'super_admin') {
-        router.push('/dashboard/superadmin')
+        window.location.href = '/dashboard/superadmin'
       } else {
-        router.push('/dashboard/driver')
+        window.location.href = '/dashboard/driver'
       }
-      router.refresh()
     }
   }
 
