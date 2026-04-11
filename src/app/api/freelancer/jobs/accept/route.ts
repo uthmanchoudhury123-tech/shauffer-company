@@ -45,5 +45,12 @@ export async function POST(req: Request) {
     .eq('id', jobId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Auto-create a chat room between poster and accepted driver
+  await admin.from('chat_rooms').upsert(
+    { job_id: jobId, poster_id: user.id, driver_id: driverId },
+    { onConflict: 'job_id' }
+  )
+
   return NextResponse.json({ ok: true })
 }

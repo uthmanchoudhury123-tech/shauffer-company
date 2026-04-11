@@ -13,13 +13,13 @@ const NAV = [
   { href: '/dashboard/freelancer/available-jobs', label: 'Available Jobs', icon: Search },
   { href: '/dashboard/freelancer/my-jobs', label: 'My Jobs', icon: Briefcase },
   { href: '/dashboard/freelancer/wallet', label: 'Wallet', icon: Wallet },
-  { href: '/dashboard/freelancer/schedule', label: 'Schedule', icon: CalendarDays, soon: true },
-  { href: '/dashboard/freelancer/notifications', label: 'Notifications', icon: Bell, soon: true },
-  { href: '/dashboard/freelancer/history', label: 'Job History', icon: History, soon: true },
-  { href: '/dashboard/freelancer/documents', label: 'Documents', icon: FileText, soon: true },
-  { href: '/dashboard/freelancer/chat', label: 'Chat', icon: MessageSquare, soon: true },
-  { href: '/dashboard/freelancer/vehicles', label: 'My Vehicles', icon: Car, soon: true },
-  { href: '/dashboard/freelancer/support', label: 'Support', icon: HelpCircle, soon: true },
+  { href: '/dashboard/freelancer/schedule', label: 'Schedule', icon: CalendarDays },
+  { href: '/dashboard/freelancer/notifications', label: 'Notifications', icon: Bell },
+  { href: '/dashboard/freelancer/history', label: 'Job History', icon: History },
+  { href: '/dashboard/freelancer/documents', label: 'Documents', icon: FileText },
+  { href: '/dashboard/freelancer/chat', label: 'Chat', icon: MessageSquare },
+  { href: '/dashboard/freelancer/vehicles', label: 'My Vehicles', icon: Car },
+  { href: '/dashboard/freelancer/support', label: 'Support', icon: HelpCircle },
 ]
 
 interface FreelancerSidebarProps {
