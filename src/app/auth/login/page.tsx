@@ -28,8 +28,17 @@ export default function LoginPage() {
     }
 
     if (data.user) {
-      // Let the server-side /dashboard hub redirect to the correct role dashboard
-      window.location.href = '/dashboard'
+      // Role is stored in user_metadata at signup — no DB query needed
+      const role = data.user.user_metadata?.role as string | undefined
+      if (role === 'company_admin') {
+        window.location.href = '/dashboard/admin'
+      } else if (role === 'freelance_driver') {
+        window.location.href = '/dashboard/freelancer'
+      } else if (role === 'super_admin') {
+        window.location.href = '/dashboard/superadmin'
+      } else {
+        window.location.href = '/dashboard/driver'
+      }
     }
   }
 
