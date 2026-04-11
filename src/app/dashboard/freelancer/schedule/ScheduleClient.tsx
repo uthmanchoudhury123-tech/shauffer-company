@@ -1,6 +1,6 @@
 'use client'
 
-import { CalendarDays, MapPin, Clock, Pound, CheckCircle2, Loader2 } from 'lucide-react'
+import { CalendarDays, Clock, CheckCircle2, Loader2 } from 'lucide-react'
 
 interface Job {
   id: string
