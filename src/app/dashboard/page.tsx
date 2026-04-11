@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic'
+
 // Central role-based redirect — always server-side, never cached
 export default async function DashboardPage() {
   const supabase = await createClient()

@@ -30,24 +30,8 @@ export default function LoginPage() {
     }
 
     if (data.user) {
-      // Read role from DB, fall back to auth metadata
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .single()
-
-      const role = profile?.role ?? data.user.user_metadata?.role
-
-      if (role === 'company_admin') {
-        window.location.href = '/dashboard/admin'
-      } else if (role === 'freelance_driver') {
-        window.location.href = '/dashboard/freelancer'
-      } else if (role === 'super_admin') {
-        window.location.href = '/dashboard/superadmin'
-      } else {
-        window.location.href = '/dashboard/driver'
-      }
+      // Let the server-side /dashboard hub redirect to the correct role dashboard
+      window.location.href = '/dashboard'
     }
   }
 
