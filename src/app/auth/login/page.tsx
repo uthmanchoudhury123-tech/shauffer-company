@@ -28,8 +28,18 @@ export default function LoginPage() {
     }
 
     if (data.user) {
-      // Role is stored in user_metadata at signup — no DB query needed
-      const role = data.user.user_metadata?.role as string | undefined
+      // Try user_metadata first (set at signup), fall back to DB
+      let role = data.user.user_metadata?.role as string | undefined
+
+      if (!role) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single()
+        role = profile?.role
+      }
+
       if (role === 'company_admin') {
         window.location.href = '/dashboard/admin'
       } else if (role === 'freelance_driver') {

@@ -18,10 +18,12 @@ export default async function DriverLayout({
     .eq('id', user.id)
     .single()
 
+  const role = profile?.role ?? (user.user_metadata?.role as string | undefined)
+
   // Route to correct dashboard based on role
-  if (profile?.role === 'company_admin') redirect('/dashboard/admin')
-  if (profile?.role === 'freelance_driver') redirect('/dashboard/freelancer')
-  if (profile?.role === 'super_admin') redirect('/dashboard/superadmin')
+  if (role === 'company_admin') redirect('/dashboard/admin')
+  if (role === 'freelance_driver') redirect('/dashboard/freelancer')
+  if (role === 'super_admin') redirect('/dashboard/superadmin')
 
   return <DriverShell driverName={profile?.full_name ?? 'Driver'}>{children}</DriverShell>
 }

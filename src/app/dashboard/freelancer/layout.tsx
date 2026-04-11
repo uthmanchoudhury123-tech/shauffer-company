@@ -14,10 +14,12 @@ export default async function FreelancerLayout({ children }: { children: React.R
     .eq('id', user.id)
     .single()
 
+  const role = profile?.role ?? (user.user_metadata?.role as string | undefined)
+
   // Only freelance drivers access this dashboard
-  if (profile?.role === 'company_admin') redirect('/dashboard/admin')
-  if (profile?.role === 'company_driver') redirect('/dashboard/driver')
-  if (profile?.role === 'super_admin') redirect('/dashboard/superadmin')
+  if (role === 'company_admin') redirect('/dashboard/admin')
+  if (role === 'company_driver') redirect('/dashboard/driver')
+  if (role === 'super_admin') redirect('/dashboard/superadmin')
 
   // Fetch wallet balance
   const { data: wallet } = await supabase
