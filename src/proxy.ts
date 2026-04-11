@@ -56,12 +56,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Logged in, trying to access auth pages → redirect to dashboard
-  if (user && (pathname === '/auth/login' || pathname === '/auth/signup')) {
+  // Helper: look up role and redirect to correct dashboard
+  async function redirectToDashboard() {
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', user!.id)
       .single()
 
     const role = profile?.role ?? 'company_driver'
@@ -72,20 +72,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(dashboardUrl)
   }
 
-  // Logged in, hit root → redirect to appropriate dashboard
-  if (user && pathname === '/') {
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    const role = profile?.role ?? 'company_driver'
-    const dashboardPath = ROLE_DASHBOARD[role] ?? '/dashboard/driver'
-
-    const dashboardUrl = request.nextUrl.clone()
-    dashboardUrl.pathname = dashboardPath
-    return NextResponse.redirect(dashboardUrl)
+  // Logged in + hitting a route that needs role-based redirect
+  if (user && (
+    pathname === '/' ||
+    pathname === '/dashboard' ||
+    pathname === '/auth/login' ||
+    pathname === '/auth/signup'
+  )) {
+    return redirectToDashboard()
   }
 
   return supabaseResponse
