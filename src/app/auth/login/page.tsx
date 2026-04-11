@@ -30,22 +30,8 @@ export default function LoginPage() {
     }
 
     if (data.user) {
-      // Fetch role to redirect correctly
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .single()
-
-      if (profile?.role === 'company_admin') {
-        window.location.href = '/dashboard/admin'
-      } else if (profile?.role === 'freelance_driver') {
-        window.location.href = '/dashboard/freelancer'
-      } else if (profile?.role === 'super_admin') {
-        window.location.href = '/dashboard/superadmin'
-      } else {
-        window.location.href = '/dashboard/driver'
-      }
+      // Server-side /dashboard page handles role-based routing
+      window.location.href = '/dashboard'
     }
   }
 
