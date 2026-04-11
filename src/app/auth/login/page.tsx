@@ -39,6 +39,10 @@ export default function LoginPage() {
 
       if (profile?.role === 'company_admin') {
         router.push('/dashboard/admin')
+      } else if (profile?.role === 'freelance_driver') {
+        router.push('/dashboard/freelancer')
+      } else if (profile?.role === 'super_admin') {
+        router.push('/dashboard/superadmin')
       } else {
         router.push('/dashboard/driver')
       }
