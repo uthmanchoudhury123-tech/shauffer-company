@@ -14,7 +14,8 @@ const PUBLIC_ROUTES = ['/auth/login', '/auth/signup', '/']
 const ROLE_DASHBOARD: Record<string, string> = {
   company_admin:    '/dashboard/admin',
   company_driver:   '/dashboard/driver',
-  freelance_driver: '/dashboard/driver',
+  freelance_driver: '/dashboard/freelancer',
+  super_admin:      '/dashboard/superadmin',
 }
 
 export async function proxy(request: NextRequest) {
