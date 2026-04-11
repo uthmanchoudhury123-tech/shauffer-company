@@ -5,7 +5,7 @@
 
 // ---- User & Auth ----
 
-export type UserRole = 'company_admin' | 'company_driver' | 'freelance_driver'
+export type UserRole = 'company_admin' | 'company_driver' | 'freelance_driver' | 'super_admin'
 
 export interface UserProfile {
   id: string
@@ -26,6 +26,7 @@ export interface Company {
   logo_url?: string
   subscription_plan: 'starter' | 'pro' | 'enterprise'
   is_active: boolean
+  is_suspended: boolean
   created_at: string
 }
 
@@ -119,6 +120,18 @@ export interface ComplianceAlert {
   alertType: 'mot' | 'service' | 'road_tax' | 'insurance'
   dueDate: string
   daysUntilDue: number
+}
+
+// ---- Super Admin Stats ----
+
+export interface SuperAdminStats {
+  totalCompanies: number
+  activeCompanies: number
+  suspendedCompanies: number
+  totalDrivers: number
+  totalJobs: number
+  jobsToday: number
+  newCompaniesThisWeek: number
 }
 
 // ---- Dashboard Stats ----
