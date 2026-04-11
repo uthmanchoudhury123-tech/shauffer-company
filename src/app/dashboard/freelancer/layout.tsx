@@ -29,6 +29,7 @@ export default async function FreelancerLayout({ children }: { children: React.R
   return (
     <FreelancerShell
       driverName={profile?.full_name ?? 'Driver'}
+      email={user.email ?? ''}
       balance={wallet?.balance ?? 0}
     >
       {children}

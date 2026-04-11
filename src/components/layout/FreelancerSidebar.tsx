@@ -24,11 +24,12 @@ const NAV = [
 
 interface FreelancerSidebarProps {
   driverName: string
+  email?: string
   balance?: number
   onClose?: () => void
 }
 
-export function FreelancerSidebar({ driverName, balance = 0, onClose }: FreelancerSidebarProps) {
+export function FreelancerSidebar({ driverName, email, balance = 0, onClose }: FreelancerSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -64,8 +65,8 @@ export function FreelancerSidebar({ driverName, balance = 0, onClose }: Freelanc
 
       {/* Driver info + wallet balance */}
       <div className="px-4 py-3 border-b border-gray-800">
-        <p className="text-xs text-gray-500">Signed in as</p>
-        <p className="text-sm font-medium text-gray-200 truncate mt-0.5">{driverName}</p>
+        <p className="text-sm font-medium text-gray-200 truncate">{driverName}</p>
+        {email && <p className="text-xs text-gray-500 truncate mt-0.5">{email}</p>}
         <div className="mt-2 flex items-center justify-between bg-gray-900 rounded-lg px-3 py-2">
           <span className="text-xs text-gray-400">Wallet</span>
           <span className="text-sm font-bold text-green-400">
