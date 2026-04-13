@@ -89,12 +89,17 @@ export function WalletClient({ balance, transactions }: Props) {
   async function handleSetupPayouts() {
     setConnectLoading(true)
     setMessage(null)
-    const res = await fetch('/api/stripe/connect/onboard', { method: 'POST' })
-    const json = await res.json()
-    if (res.ok && json.url) {
-      window.location.href = json.url
-    } else {
-      setMessage({ text: json.error ?? 'Failed to start onboarding', type: 'error' })
+    try {
+      const res = await fetch('/api/stripe/connect/onboard', { method: 'POST' })
+      const json = await res.json()
+      if (res.ok && json.url) {
+        window.location.href = json.url
+      } else {
+        setMessage({ text: json.error ?? `Error ${res.status}: Failed to start onboarding`, type: 'error' })
+        setConnectLoading(false)
+      }
+    } catch (err: any) {
+      setMessage({ text: err.message ?? 'Network error — please try again', type: 'error' })
       setConnectLoading(false)
     }
   }

@@ -29,22 +29,30 @@ export async function POST(req: Request) {
       .eq('id', user.id)
       .single()
 
-    // Create Stripe Express account
-    const account = await stripe.accounts.create({
-      type: 'express',
-      country: 'GB',
-      email: profile?.email ?? user.email,
-      capabilities: {
-        transfers: { requested: true },
-      },
-      metadata: { supabase_id: user.id },
-    })
-    connectId = account.id
+    try {
+      // Create Stripe Express account
+      const account = await stripe.accounts.create({
+        type: 'express',
+        country: 'GB',
+        email: profile?.email ?? user.email ?? undefined,
+        capabilities: {
+          transfers: { requested: true },
+        },
+        metadata: { supabase_id: user.id },
+      })
+      connectId = account.id
 
-    await admin.from('stripe_accounts').upsert({
-      driver_id: user.id,
-      stripe_connect_id: connectId,
-    })
+      await admin.from('stripe_accounts').upsert({
+        driver_id: user.id,
+        stripe_connect_id: connectId,
+      })
+    } catch (err: any) {
+      console.error('Stripe Connect error:', err.message)
+      return NextResponse.json(
+        { error: err.message ?? 'Failed to create Stripe account' },
+        { status: 500 }
+      )
+    }
   }
 
   // Create onboarding link
