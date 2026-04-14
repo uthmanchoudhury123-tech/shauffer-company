@@ -14,7 +14,8 @@ export default async function SuperAdminLayout({ children }: { children: React.R
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'super_admin') redirect('/dashboard/admin')
+  const role = profile?.role ?? (user.user_metadata?.role as string | undefined)
+  if (role !== 'super_admin') redirect('/auth/login')
 
   return <SuperAdminShell>{children}</SuperAdminShell>
 }
