@@ -12,17 +12,27 @@ import {
   LogOut,
   ChevronRight,
   X,
+  TrendingUp,
+  CalendarDays,
+  BarChart2,
+  TableProperties,
+  ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV_ITEMS = [
-  { href: '/dashboard/admin',          label: 'Overview',    icon: LayoutDashboard },
-  { href: '/dashboard/admin/fleet',    label: 'Fleet',       icon: Car },
-  { href: '/dashboard/admin/drivers',  label: 'Drivers',     icon: Users },
-  { href: '/dashboard/admin/jobs',     label: 'Jobs',        icon: Briefcase },
-  { href: '/dashboard/admin/dispatch', label: 'Dispatch',    icon: Radio },
-  { href: '/dashboard/admin/map',      label: 'Map View',    icon: Map },
+  { href: '/dashboard/admin',              label: 'Overview',       icon: LayoutDashboard },
+  { href: '/dashboard/admin/fleet',        label: 'Fleet',          icon: Car },
+  { href: '/dashboard/admin/drivers',      label: 'Drivers',        icon: Users },
+  { href: '/dashboard/admin/jobs',         label: 'Jobs',           icon: Briefcase },
+  { href: '/dashboard/admin/dispatch',     label: 'Dispatch',       icon: Radio },
+  { href: '/dashboard/admin/map',          label: 'Map View',       icon: Map },
+  { href: '/dashboard/admin/performance',  label: 'Performance',    icon: TrendingUp },
+  { href: '/dashboard/admin/calendar',     label: 'Calendar',       icon: CalendarDays },
+  { href: '/dashboard/admin/analytics',    label: 'Analytics',      icon: BarChart2 },
+  { href: '/dashboard/admin/spreadsheet',  label: 'Spreadsheet',    icon: TableProperties },
+  { href: '/dashboard/admin/outsourced',   label: 'Outsourced Jobs', icon: ExternalLink },
 ]
 
 interface AdminSidebarProps {
