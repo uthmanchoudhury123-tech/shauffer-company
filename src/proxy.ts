@@ -1,5 +1,5 @@
 // ============================================================
-// [PLATFORM] Auth Proxy (Next.js 16 — renamed from middleware)
+// Chauffex Auth Proxy (Next.js 16 — renamed from middleware)
 // Runs on every request to protect routes and handle role-based
 // redirects after login.
 // ============================================================

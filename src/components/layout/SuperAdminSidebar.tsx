@@ -39,7 +39,7 @@ export function SuperAdminSidebar({ onClose }: SuperAdminSidebarProps) {
             <Shield className="w-4 h-4 text-white" />
           </div>
           <div>
-            <p className="font-bold text-sm tracking-tight">[PLATFORM]</p>
+            <p className="font-bold text-sm tracking-tight">Chauffex</p>
             <p className="text-xs text-purple-400 font-medium">Super Admin</p>
           </div>
         </div>

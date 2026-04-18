@@ -6,12 +6,12 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: '[PLATFORM] — Fleet & Driver Management',
+  title: 'Chauffex — Fleet & Driver Management',
   description: 'Professional fleet and driver management for modern transport companies.',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: '[PLATFORM]',
+    title: 'Chauffex',
   },
 }
 

@@ -2,10 +2,10 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: '[PLATFORM] — Driver',
-    short_name: '[PLATFORM]',
-    description: 'Your jobs, live location sharing and status — all in one place.',
-    start_url: '/dashboard/driver',
+    name: 'Chauffex',
+    short_name: 'Chauffex',
+    description: 'Chauffeur fleet management — jobs, dispatch, and driver tools.',
+    start_url: '/auth/login',
     display: 'standalone',
     background_color: '#030712',
     theme_color: '#2563eb',

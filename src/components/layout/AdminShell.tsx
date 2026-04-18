@@ -60,7 +60,7 @@ export function AdminShell({ children, companyName, companyLogo, adminName }: Ad
                 </svg>
               </div>
             )}
-            <span className="font-semibold text-white text-sm">{companyName ?? '[PLATFORM]'}</span>
+            <span className="font-semibold text-white text-sm">{companyName ?? 'Chauffex'}</span>
           </div>
         </div>
 

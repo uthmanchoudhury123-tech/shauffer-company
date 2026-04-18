@@ -73,7 +73,7 @@ export function AdminSidebar({ onClose, companyName, companyLogo, adminName }: A
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-white truncate leading-tight">
-              {companyName ?? '[PLATFORM]'}
+              {companyName ?? 'Chauffex'}
             </p>
             {adminName && (
               <p className="text-xs text-gray-500 truncate">{adminName}</p>

@@ -59,7 +59,7 @@ export default async function InvitePage({ params }: Props) {
           </svg>
         </div>
 
-        <h1 className="text-2xl font-bold text-white mb-2">[PLATFORM]</h1>
+        <h1 className="text-2xl font-bold text-white mb-2">Chauffex</h1>
         <p className="text-gray-400 text-sm mb-8">You&apos;ve been invited to join</p>
 
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">

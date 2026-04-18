@@ -1,5 +1,5 @@
 // ============================================================
-// [PLATFORM] - Core TypeScript Types
+// Chauffex - Core TypeScript Types
 // Built to support 150+ companies and 1,000+ drivers
 // ============================================================
 
