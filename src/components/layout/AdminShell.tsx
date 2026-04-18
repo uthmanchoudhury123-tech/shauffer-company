@@ -4,7 +4,14 @@ import { useState } from 'react'
 import { Menu } from 'lucide-react'
 import { AdminSidebar } from './AdminSidebar'
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+interface AdminShellProps {
+  children: React.ReactNode
+  companyName?: string
+  companyLogo?: string | null
+  adminName?: string
+}
+
+export function AdminShell({ children, companyName, companyLogo, adminName }: AdminShellProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -17,13 +24,18 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* Sidebar — hidden off-screen on mobile, always visible on desktop */}
+      {/* Sidebar */}
       <div
         className={`fixed inset-y-0 left-0 z-30 transition-transform duration-200 ease-in-out
           lg:static lg:translate-x-0
           ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
-        <AdminSidebar onClose={() => setOpen(false)} />
+        <AdminSidebar
+          onClose={() => setOpen(false)}
+          companyName={companyName}
+          companyLogo={companyLogo}
+          adminName={adminName}
+        />
       </div>
 
       {/* Main content */}
@@ -38,13 +50,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center flex-shrink-0">
-              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-            </div>
-            <span className="font-semibold text-white text-sm">[PLATFORM]</span>
+            {companyLogo ? (
+              <img src={companyLogo} alt={companyName} className="w-6 h-6 rounded object-contain" />
+            ) : (
+              <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center flex-shrink-0">
+                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+              </div>
+            )}
+            <span className="font-semibold text-white text-sm">{companyName ?? '[PLATFORM]'}</span>
           </div>
         </div>
 

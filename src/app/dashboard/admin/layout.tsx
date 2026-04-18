@@ -21,23 +21,25 @@ export default async function AdminLayout({
     .single()
 
   const role = profile?.role ?? (user.user_metadata?.role as string | undefined)
-  if (role !== 'company_admin') {
-    redirect('/dashboard/driver')
-  }
+  if (role !== 'company_admin') redirect('/dashboard/driver')
 
-  // Fetch subscription info if company exists
-  let company = null
+  // Fetch company details for sidebar
+  let company: { name: string; logo_url: string | null; subscription_status: string | null; trial_ends_at: string | null; stripe_subscription_id: string | null } | null = null
   if (profile?.company_id) {
     const { data } = await supabase
       .from('companies')
-      .select('subscription_status, trial_ends_at, stripe_subscription_id')
+      .select('name, logo_url, subscription_status, trial_ends_at, stripe_subscription_id')
       .eq('id', profile.company_id)
       .single()
     company = data
   }
 
   return (
-    <AdminShell>
+    <AdminShell
+      companyName={company?.name}
+      companyLogo={company?.logo_url ?? null}
+      adminName={profile?.full_name}
+    >
       {!profile?.company_id && <CompanySetupBanner />}
       {profile?.company_id && company && (
         <SubscriptionGate

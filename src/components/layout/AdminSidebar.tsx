@@ -19,6 +19,7 @@ import {
   ExternalLink,
   CreditCard,
   Settings,
+  Building2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -41,9 +42,12 @@ const NAV_ITEMS = [
 
 interface AdminSidebarProps {
   onClose?: () => void
+  companyName?: string
+  companyLogo?: string | null
+  adminName?: string
 }
 
-export function AdminSidebar({ onClose }: AdminSidebarProps) {
+export function AdminSidebar({ onClose, companyName, companyLogo, adminName }: AdminSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -56,21 +60,30 @@ export function AdminSidebar({ onClose }: AdminSidebarProps) {
 
   return (
     <aside className="w-60 h-full min-h-screen bg-gray-950 flex flex-col border-r border-gray-800">
-      {/* Logo */}
-      <div className="px-5 py-5 border-b border-gray-800 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
+      {/* Company profile header */}
+      <div className="px-4 py-4 border-b border-gray-800 flex items-center justify-between gap-2">
+        <Link href="/dashboard/admin/settings" className="flex items-center gap-3 min-w-0 group flex-1">
+          {/* Logo / avatar */}
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden border border-white/10
+                          group-hover:border-white/20 transition-colors bg-gray-800">
+            {companyLogo
+              ? <img src={companyLogo} alt={companyName} className="w-full h-full object-contain p-0.5" />
+              : <Building2 className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
+            }
           </div>
-          <span className="font-semibold text-white text-sm">[PLATFORM]</span>
-        </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white truncate leading-tight">
+              {companyName ?? '[PLATFORM]'}
+            </p>
+            {adminName && (
+              <p className="text-xs text-gray-500 truncate">{adminName}</p>
+            )}
+          </div>
+        </Link>
         {onClose && (
           <button
             onClick={onClose}
-            className="lg:hidden text-gray-400 hover:text-white p-1"
+            className="lg:hidden text-gray-400 hover:text-white p-1 flex-shrink-0"
             aria-label="Close menu"
           >
             <X className="w-4 h-4" />

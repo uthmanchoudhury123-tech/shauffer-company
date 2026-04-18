@@ -71,8 +71,8 @@ export function CompanyOnboardingClient() {
       return
     }
 
-    router.push('/dashboard/admin')
-    router.refresh()
+    // Full reload so server layout re-fetches company_id
+    window.location.href = '/dashboard/admin'
   }
 
   return (
