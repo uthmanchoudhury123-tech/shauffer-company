@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AdminShell } from '@/components/layout/AdminShell'
 import { CompanySetupBanner } from '@/components/CompanySetupBanner'
+import { SubscriptionGate } from '@/components/SubscriptionGate'
 
 export default async function AdminLayout({
   children,
@@ -24,9 +25,27 @@ export default async function AdminLayout({
     redirect('/dashboard/driver')
   }
 
+  // Fetch subscription info if company exists
+  let company = null
+  if (profile?.company_id) {
+    const { data } = await supabase
+      .from('companies')
+      .select('subscription_status, trial_ends_at, stripe_subscription_id')
+      .eq('id', profile.company_id)
+      .single()
+    company = data
+  }
+
   return (
     <AdminShell>
       {!profile?.company_id && <CompanySetupBanner />}
+      {profile?.company_id && company && (
+        <SubscriptionGate
+          status={company.subscription_status ?? 'trialing'}
+          trialEndsAt={company.trial_ends_at ?? null}
+          hasSubscription={!!company.stripe_subscription_id}
+        />
+      )}
       {children}
     </AdminShell>
   )

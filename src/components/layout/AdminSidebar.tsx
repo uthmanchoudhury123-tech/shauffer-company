@@ -17,6 +17,7 @@ import {
   BarChart2,
   TableProperties,
   ExternalLink,
+  CreditCard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/admin/analytics',    label: 'Analytics',      icon: BarChart2 },
   { href: '/dashboard/admin/spreadsheet',  label: 'Spreadsheet',    icon: TableProperties },
   { href: '/dashboard/admin/outsourced',   label: 'Outsourced Jobs', icon: ExternalLink },
+  { href: '/dashboard/admin/billing',      label: 'Billing',         icon: CreditCard },
 ]
 
 interface AdminSidebarProps {
