@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Building2, Users, X, Shield } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { LayoutDashboard, Building2, Users, X, Shield, LogOut } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 const NAV = [
   { href: '/dashboard/superadmin', label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -16,6 +17,14 @@ interface SuperAdminSidebarProps {
 
 export function SuperAdminSidebar({ onClose }: SuperAdminSidebarProps) {
   const pathname = usePathname()
+  const router = useRouter()
+
+  async function handleSignOut() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/auth/login')
+    router.refresh()
+  }
 
   function isActive(href: string, exact?: boolean) {
     return exact ? pathname === href : pathname.startsWith(href)
@@ -61,8 +70,15 @@ export function SuperAdminSidebar({ onClose }: SuperAdminSidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t border-gray-800">
-        <p className="text-xs text-gray-600 text-center">Platform Management</p>
+      <div className="px-3 py-4 border-t border-gray-800 space-y-1">
+        <button
+          onClick={handleSignOut}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign out
+        </button>
+        <p className="text-xs text-gray-600 text-center pt-1">Platform Management</p>
       </div>
     </aside>
   )
