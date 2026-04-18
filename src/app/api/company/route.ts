@@ -26,10 +26,22 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient()
 
+  // Step 1: insert with guaranteed columns (always exist)
   const { data: company, error: companyErr } = await admin
     .from('companies')
     .insert({
-      name:        body.name.trim(),
+      name:     body.name.trim(),
+      logo_url: body.logo_url || null,
+    })
+    .select('id')
+    .single()
+
+  if (companyErr) return NextResponse.json({ error: companyErr.message }, { status: 500 })
+
+  // Step 2: update extended fields (added by migration — non-fatal if columns don't exist yet)
+  await admin
+    .from('companies')
+    .update({
       phone:       body.phone       || null,
       email:       body.email       || null,
       website:     body.website     || null,
@@ -38,13 +50,10 @@ export async function POST(request: Request) {
       postcode:    body.postcode    || null,
       country:     body.country     || 'United Kingdom',
       description: body.description || null,
-      logo_url:    body.logo_url    || null,
     })
-    .select('id')
-    .single()
+    .eq('id', company.id)
 
-  if (companyErr) return NextResponse.json({ error: companyErr.message }, { status: 500 })
-
+  // Step 3: link admin to company
   await admin
     .from('user_profiles')
     .update({ company_id: company.id })
