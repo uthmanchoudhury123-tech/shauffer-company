@@ -45,6 +45,7 @@ export interface Vehicle {
   car_type: CarType
   status: VehicleStatus
   colour?: string
+  photo_url?: string | null
   // Compliance dates
   mot_date?: string
   service_date?: string

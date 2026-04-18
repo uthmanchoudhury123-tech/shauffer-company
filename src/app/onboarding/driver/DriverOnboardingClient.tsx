@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Camera, Car, FileText, User, Phone, CheckCircle2, ChevronRight, ArrowLeft } from 'lucide-react'
+import { Camera, Car, FileText, User, Phone, CheckCircle2, ChevronRight, ArrowLeft, ImagePlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const CAR_TYPES = ['saloon', 'estate', 'suv', 'mpv', 'minibus', 'executive', 'van']
@@ -35,6 +35,8 @@ export function DriverOnboardingClient({
 
   // Step 1
   const [carType, setCarType] = useState('saloon')
+  const [vehiclePhotoUrl, setVehiclePhotoUrl] = useState('')
+  const [uploadingVehicle, setUploadingVehicle] = useState(false)
 
   // Step 2
   const [licenceNumber, setLicenceNumber] = useState('')
@@ -72,6 +74,7 @@ export function DriverOnboardingClient({
         full_name: fullName,
         phone,
         car_type: carType,
+        vehicle_photo_url: vehiclePhotoUrl || null,
         licence_number: licenceNumber,
         licence_expiry: licenceExpiry || null,
         photo_url: photoUrl || null,
@@ -191,7 +194,46 @@ export function DriverOnboardingClient({
 
           {/* ── Step 1: Vehicle ── */}
           {step === 1 && (
-            <div className="space-y-4">
+            <div className="space-y-5">
+              {/* Vehicle photo */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-2">
+                  Vehicle Photo <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <div className="flex items-center gap-4">
+                  <div className="w-28 h-20 rounded-xl overflow-hidden border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center flex-shrink-0">
+                    {vehiclePhotoUrl
+                      ? <img src={vehiclePhotoUrl} alt="Vehicle" className="w-full h-full object-cover" />
+                      : <Car className="w-8 h-8 text-gray-300" />
+                    }
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors text-xs font-medium text-gray-600">
+                      <Camera className="w-3.5 h-3.5" />
+                      {uploadingVehicle ? 'Uploading…' : vehiclePhotoUrl ? 'Change Photo' : 'Upload Photo'}
+                      <input
+                        type="file" accept="image/*" className="hidden"
+                        disabled={uploadingVehicle}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          setUploadingVehicle(true)
+                          const supabase = createClient()
+                          const path = `driver-vehicles/${userId}/${Date.now()}-${file.name}`
+                          const { data, error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+                          if (!error && data) {
+                            const { data: url } = supabase.storage.from('avatars').getPublicUrl(path)
+                            setVehiclePhotoUrl(url.publicUrl)
+                          }
+                          setUploadingVehicle(false)
+                        }}
+                      />
+                    </label>
+                    <p className="text-xs text-gray-400 mt-1">Shown when applying for jobs</p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
                   <Car className="w-3.5 h-3.5" /> Vehicle Type

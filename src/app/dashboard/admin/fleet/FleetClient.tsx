@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Car, AlertTriangle, Edit2, Trash2, Search } from 'lucide-react'
+import { Plus, Car, AlertTriangle, Edit2, Trash2, Search, Camera } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
@@ -28,6 +28,7 @@ const emptyForm = {
   car_type: 'saloon' as CarType,
   status: 'available' as VehicleStatus,
   colour: '',
+  photo_url: '',
   mot_date: '',
   service_date: '',
   road_tax_date: '',
@@ -42,7 +43,22 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    const supabase = createClient()
+    const path = `fleet/${companyId}/${Date.now()}-${file.name}`
+    const { data, error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+    if (!error && data) {
+      const { data: url } = supabase.storage.from('avatars').getPublicUrl(path)
+      setForm(f => ({ ...f, photo_url: url.publicUrl }))
+    }
+    setUploading(false)
+  }
 
   const filtered = vehicles.filter(v =>
     v.registration.toLowerCase().includes(search.toLowerCase()) ||
@@ -70,6 +86,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
       car_type: v.car_type,
       status: v.status,
       colour: v.colour ?? '',
+      photo_url: v.photo_url ?? '',
       mot_date: v.mot_date ?? '',
       service_date: v.service_date ?? '',
       road_tax_date: v.road_tax_date ?? '',
@@ -88,12 +105,12 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
       ...form,
       company_id: companyId,
       year: Number(form.year),
-      // Convert empty strings to null for date fields
       mot_date: form.mot_date || null,
       service_date: form.service_date || null,
       road_tax_date: form.road_tax_date || null,
       insurance_date: form.insurance_date || null,
       colour: form.colour || null,
+      photo_url: form.photo_url || null,
     }
 
     if (editingVehicle) {
@@ -198,6 +215,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-4 py-3 w-16" />
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Vehicle</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Registration</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
@@ -213,6 +231,14 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
                   const alerts = getComplianceAlerts(v)
                   return (
                     <tr key={v.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-3 py-2 w-16">
+                        <div className="w-14 h-10 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0">
+                          {v.photo_url
+                            ? <img src={v.photo_url} alt={v.make} className="w-full h-full object-cover" />
+                            : <Car className="w-4 h-4 text-gray-300" />
+                          }
+                        </div>
+                      </td>
                       <td className="px-4 py-3 font-medium text-gray-900">
                         {v.year} {v.make} {v.model}
                         {v.colour && <span className="text-gray-400 font-normal ml-1">({v.colour})</span>}
@@ -278,6 +304,24 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
         size="lg"
       >
         <div className="space-y-4">
+          {/* Vehicle photo */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-2">Vehicle Photo <span className="text-gray-400">(optional)</span></label>
+            <div className="flex items-center gap-4">
+              <div className="w-28 h-20 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center flex-shrink-0">
+                {form.photo_url
+                  ? <img src={form.photo_url} alt="Vehicle" className="w-full h-full object-cover" />
+                  : <Car className="w-7 h-7 text-gray-300" />
+                }
+              </div>
+              <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors text-xs font-medium text-gray-600">
+                <Camera className="w-3.5 h-3.5" />
+                {uploading ? 'Uploading…' : form.photo_url ? 'Change Photo' : 'Upload Photo'}
+                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploading} />
+              </label>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Make *</label>
