@@ -18,6 +18,7 @@ import {
   TableProperties,
   ExternalLink,
   CreditCard,
+  Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/admin/spreadsheet',  label: 'Spreadsheet',    icon: TableProperties },
   { href: '/dashboard/admin/outsourced',   label: 'Outsourced Jobs', icon: ExternalLink },
   { href: '/dashboard/admin/billing',      label: 'Billing',         icon: CreditCard },
+  { href: '/dashboard/admin/settings',    label: 'Settings',        icon: Settings },
 ]
 
 interface AdminSidebarProps {
