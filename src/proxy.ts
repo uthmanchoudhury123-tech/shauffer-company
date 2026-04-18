@@ -56,17 +56,24 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Helper: look up role and redirect to correct dashboard
+  // Helper: look up role + company, redirect to correct dashboard (or onboarding)
   async function redirectToDashboard() {
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('role')
+      .select('role, company_id')
       .eq('id', user!.id)
       .single()
 
     const role = profile?.role ?? 'company_driver'
-    const dashboardPath = ROLE_DASHBOARD[role] ?? '/dashboard/driver'
 
+    // Company admin with no company → must complete onboarding first
+    if (role === 'company_admin' && !profile?.company_id) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/onboarding/company'
+      return NextResponse.redirect(url)
+    }
+
+    const dashboardPath = ROLE_DASHBOARD[role] ?? '/dashboard/driver'
     const dashboardUrl = request.nextUrl.clone()
     dashboardUrl.pathname = dashboardPath
     return NextResponse.redirect(dashboardUrl)
@@ -80,6 +87,21 @@ export async function proxy(request: NextRequest) {
     pathname === '/auth/signup'
   )) {
     return redirectToDashboard()
+  }
+
+  // Company admin accessing their dashboard — check they have a company
+  if (user && pathname.startsWith('/dashboard/admin')) {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('role, company_id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profile?.role === 'company_admin' && !profile?.company_id) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/onboarding/company'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

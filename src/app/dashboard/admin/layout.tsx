@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AdminShell } from '@/components/layout/AdminShell'
-import { CompanySetupBanner } from '@/components/CompanySetupBanner'
 import { SubscriptionGate } from '@/components/SubscriptionGate'
 
 export default async function AdminLayout({
@@ -40,14 +39,14 @@ export default async function AdminLayout({
       companyLogo={company?.logo_url ?? null}
       adminName={profile?.full_name}
     >
-      {!profile?.company_id && <CompanySetupBanner />}
-      {profile?.company_id && company && (
+      {company && (
         <SubscriptionGate
           status={company.subscription_status ?? 'trialing'}
           trialEndsAt={company.trial_ends_at ?? null}
           hasSubscription={!!company.stripe_subscription_id}
         />
       )}
+
       {children}
     </AdminShell>
   )
