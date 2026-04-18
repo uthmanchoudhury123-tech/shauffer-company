@@ -2,14 +2,9 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DriverShell } from '@/components/layout/DriverShell'
 
-export default async function DriverLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default async function DriverLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-
   if (!user) redirect('/auth/login')
 
   const { data: profile } = await supabase
@@ -20,10 +15,23 @@ export default async function DriverLayout({
 
   const role = profile?.role ?? (user.user_metadata?.role as string | undefined)
 
-  // Route to correct dashboard based on role
-  if (role === 'company_admin') redirect('/dashboard/admin')
+  if (role === 'company_admin')    redirect('/dashboard/admin')
   if (role === 'freelance_driver') redirect('/dashboard/freelancer')
-  if (role === 'super_admin') redirect('/dashboard/superadmin')
+  if (role === 'super_admin')      redirect('/dashboard/superadmin')
 
-  return <DriverShell driverName={profile?.full_name ?? 'Driver'}>{children}</DriverShell>
+  // Fetch driver photo
+  const { data: driver } = await supabase
+    .from('drivers')
+    .select('photo_url')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  return (
+    <DriverShell
+      driverName={profile?.full_name ?? 'Driver'}
+      photoUrl={driver?.photo_url ?? null}
+    >
+      {children}
+    </DriverShell>
+  )
 }

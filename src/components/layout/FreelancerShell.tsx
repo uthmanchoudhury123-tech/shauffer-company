@@ -7,11 +7,12 @@ import { FreelancerSidebar } from './FreelancerSidebar'
 interface FreelancerShellProps {
   children: React.ReactNode
   driverName: string
+  photoUrl?: string | null
   email: string
   balance: number
 }
 
-export function FreelancerShell({ children, driverName, email, balance }: FreelancerShellProps) {
+export function FreelancerShell({ children, driverName, photoUrl, email, balance }: FreelancerShellProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -22,7 +23,7 @@ export function FreelancerShell({ children, driverName, email, balance }: Freela
 
       <div className={`fixed inset-y-0 left-0 z-30 transition-transform duration-200 ease-in-out
         lg:static lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <FreelancerSidebar driverName={driverName} email={email} balance={balance} onClose={() => setOpen(false)} />
+        <FreelancerSidebar driverName={driverName} photoUrl={photoUrl} email={email} balance={balance} onClose={() => setOpen(false)} />
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">

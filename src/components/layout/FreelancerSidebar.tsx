@@ -24,12 +24,13 @@ const NAV = [
 
 interface FreelancerSidebarProps {
   driverName: string
+  photoUrl?: string | null
   email?: string
   balance?: number
   onClose?: () => void
 }
 
-export function FreelancerSidebar({ driverName, email, balance = 0, onClose }: FreelancerSidebarProps) {
+export function FreelancerSidebar({ driverName, photoUrl, email, balance = 0, onClose }: FreelancerSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -42,36 +43,32 @@ export function FreelancerSidebar({ driverName, email, balance = 0, onClose }: F
 
   return (
     <aside className="w-60 h-full bg-gray-950 flex flex-col border-r border-gray-800">
-      {/* Logo */}
-      <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
+      {/* Driver profile header */}
+      <div className="px-4 py-4 border-b border-gray-800 flex items-center justify-between gap-2">
+        <Link href="/dashboard/freelancer/profile" className="flex items-center gap-3 min-w-0 group flex-1">
+          <div className="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden border border-white/10 group-hover:border-white/30 transition-colors bg-blue-600 flex items-center justify-center">
+            {photoUrl
+              ? <img src={photoUrl} alt={driverName} className="w-full h-full object-cover" />
+              : <span className="text-sm font-bold text-white">{driverName.charAt(0).toUpperCase()}</span>
+            }
           </div>
-          <div>
-            <span className="font-semibold text-white text-sm block">[PLATFORM]</span>
-            <span className="text-xs text-blue-400">Freelancer</span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white truncate leading-tight">{driverName}</p>
+            <p className="text-xs text-blue-400">Freelancer</p>
           </div>
-        </div>
+        </Link>
         {onClose && (
-          <button onClick={onClose} className="lg:hidden text-gray-400 hover:text-white p-1">
+          <button onClick={onClose} className="lg:hidden text-gray-400 hover:text-white p-1 flex-shrink-0">
             <X className="w-4 h-4" />
           </button>
         )}
       </div>
 
-      {/* Driver info + wallet balance */}
+      {/* Wallet balance */}
       <div className="px-4 py-3 border-b border-gray-800">
-        <p className="text-sm font-medium text-gray-200 truncate">{driverName}</p>
-        {email && <p className="text-xs text-gray-500 truncate mt-0.5">{email}</p>}
-        <div className="mt-2 flex items-center justify-between bg-gray-900 rounded-lg px-3 py-2">
-          <span className="text-xs text-gray-400">Wallet</span>
-          <span className="text-sm font-bold text-green-400">
-            £{balance.toFixed(2)}
-          </span>
+        <div className="flex items-center justify-between bg-gray-900 rounded-lg px-3 py-2">
+          <span className="text-xs text-gray-400">Wallet balance</span>
+          <span className="text-sm font-bold text-green-400">£{balance.toFixed(2)}</span>
         </div>
       </div>
 

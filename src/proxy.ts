@@ -104,6 +104,21 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // Driver/freelancer accessing their dashboard — check onboarding is complete
+  if (user && (pathname.startsWith('/dashboard/driver') || pathname.startsWith('/dashboard/freelancer'))) {
+    const { data: driver } = await supabase
+      .from('drivers')
+      .select('onboarding_complete')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!driver?.onboarding_complete) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/onboarding/driver'
+      return NextResponse.redirect(url)
+    }
+  }
+
   return supabaseResponse
 }
 

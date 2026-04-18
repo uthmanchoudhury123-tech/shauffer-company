@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Menu } from 'lucide-react'
 import { DriverSidebar } from './DriverSidebar'
 
-export function DriverShell({ children, driverName }: { children: React.ReactNode; driverName: string }) {
+export function DriverShell({ children, driverName, photoUrl }: { children: React.ReactNode; driverName: string; photoUrl?: string | null }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -23,7 +23,7 @@ export function DriverShell({ children, driverName }: { children: React.ReactNod
           lg:static lg:translate-x-0
           ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
-        <DriverSidebar driverName={driverName} onClose={() => setOpen(false)} />
+        <DriverSidebar driverName={driverName} photoUrl={photoUrl} onClose={() => setOpen(false)} />
       </div>
 
       {/* Main content */}
