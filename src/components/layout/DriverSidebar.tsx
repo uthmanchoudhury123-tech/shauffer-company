@@ -2,12 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, LogOut, X } from 'lucide-react'
+import { LayoutDashboard, LogOut, X, Car, Briefcase, FileText, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV_ITEMS = [
-  { href: '/dashboard/driver', label: 'My Jobs', icon: LayoutDashboard },
+  { href: '/dashboard/driver',                label: 'My Jobs',        icon: LayoutDashboard },
+  { href: '/dashboard/driver/available-jobs', label: 'Available Jobs', icon: Briefcase },
+  { href: '/dashboard/driver/my-vehicles',    label: 'My Vehicles',    icon: Car },
+  { href: '/dashboard/driver/sign',           label: 'Meet & Greet',   icon: FileText },
+  { href: '/dashboard/driver/profile',        label: 'My Profile',     icon: User },
 ]
 
 interface DriverSidebarProps {
@@ -62,7 +66,7 @@ export function DriverSidebar({ driverName, onClose }: DriverSidebarProps) {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {NAV_ITEMS.map(item => {
-          const isActive = pathname === item.href
+          const isActive = item.href === '/dashboard/driver' ? pathname === item.href : pathname.startsWith(item.href)
           return (
             <Link
               key={item.href}

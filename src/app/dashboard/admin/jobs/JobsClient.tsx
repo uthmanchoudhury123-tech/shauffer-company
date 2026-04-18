@@ -34,6 +34,7 @@ const emptyForm = {
   preferred_car_type: '' as CarType | '',
   notes: '',
   driver_id: '',
+  open_for_applications: false,
 }
 
 export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: JobsClientProps) {
@@ -49,6 +50,11 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
   const [assignModal, setAssignModal] = useState(false)
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [assignDriverId, setAssignDriverId] = useState('')
+  // Applications
+  const [applicationsModal, setApplicationsModal] = useState(false)
+  const [applicationsJob, setApplicationsJob] = useState<Job | null>(null)
+  const [jobApplications, setJobApplications] = useState<{id:string,driver_id:string,status:string,message:string|null,vehicle_id:string|null,created_at:string,driver_name?:string}[]>([])
+  const [loadingApps, setLoadingApps] = useState(false)
 
   const filtered = jobs.filter(j => {
     const matchSearch =
@@ -75,6 +81,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       notes: form.notes || null,
       status: form.driver_id ? 'assigned' : 'pending' as JobStatus,
       driver_id: form.driver_id || null,
+      open_for_applications: form.driver_id ? false : form.open_for_applications,
     }
 
     const { data, error: err } = await supabase
@@ -144,6 +151,48 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       .select()
       .single()
     if (data) setJobs(prev => prev.map(j => j.id === jobId ? data : j))
+  }
+
+  async function viewApplications(job: Job) {
+    setApplicationsJob(job)
+    setApplicationsModal(true)
+    setLoadingApps(true)
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('job_applications')
+      .select('*')
+      .eq('job_id', job.id)
+      .order('created_at', { ascending: true })
+    // Enrich with driver name
+    const enriched = await Promise.all((data ?? []).map(async (app) => {
+      const { data: d } = await supabase.from('drivers').select('full_name').eq('id', app.driver_id).single()
+      return { ...app, driver_name: d?.full_name }
+    }))
+    setJobApplications(enriched)
+    setLoadingApps(false)
+  }
+
+  async function acceptApplication(appId: string, driverId: string, jobId: string) {
+    const supabase = createClient()
+    // Accept this application
+    await supabase.from('job_applications').update({ status: 'accepted' }).eq('id', appId)
+    // Reject all others for this job
+    await supabase.from('job_applications').update({ status: 'rejected' }).eq('job_id', jobId).neq('id', appId)
+    // Assign driver to job + close applications
+    const { data } = await supabase
+      .from('jobs')
+      .update({ driver_id: driverId, status: 'assigned', open_for_applications: false })
+      .eq('id', jobId)
+      .select()
+      .single()
+    if (data) setJobs(prev => prev.map(j => j.id === jobId ? data : j))
+    setJobApplications(prev => prev.map(a => ({ ...a, status: a.id === appId ? 'accepted' : 'rejected' })))
+    // Push notification
+    fetch('/api/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driverId, title: 'Job Application Accepted!', body: 'You have been assigned a job.', url: '/dashboard/driver' }),
+    }).catch(() => {})
   }
 
   const availableDrivers = drivers.filter(d => d.availability_status === 'available')
@@ -254,8 +303,17 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                     </Badge>
 
                     <div className="flex items-center gap-1.5">
+                      {/* Applications button */}
+                      {(job as any).open_for_applications && (
+                        <button
+                          onClick={() => viewApplications(job)}
+                          className="text-xs px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg transition-colors font-medium"
+                        >
+                          View Applications
+                        </button>
+                      )}
                       {/* Assign driver button */}
-                      {(job.status === 'pending' || job.status === 'assigned') && (
+                      {(job.status === 'pending' || job.status === 'assigned') && !(job as any).open_for_applications && (
                         <button
                           onClick={() => { setSelectedJob(job); setAssignDriverId(job.driver_id ?? ''); setAssignModal(true) }}
                           className="text-xs px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors"
@@ -365,8 +423,23 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             </div>
           </div>
 
+          {/* Open for applications toggle */}
+          <div className="flex items-center justify-between py-3 px-4 bg-blue-50 rounded-lg border border-blue-100">
+            <div>
+              <p className="text-sm font-medium text-blue-900">Open for Driver Applications</p>
+              <p className="text-xs text-blue-600 mt-0.5">Drivers with matching vehicles can apply for this job</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, open_for_applications: !f.open_for_applications, driver_id: f.open_for_applications ? f.driver_id : '' }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.open_for_applications ? 'bg-blue-600' : 'bg-gray-200'}`}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${form.open_for_applications ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
           {/* Assign driver at creation */}
-          <div>
+          {!form.open_for_applications && <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Assign Driver (optional)</label>
             <select
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -380,7 +453,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                 </option>
               ))}
             </select>
-          </div>
+          </div>}
 
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
@@ -462,6 +535,60 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
               Assign
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Applications Modal */}
+      <Modal isOpen={applicationsModal} onClose={() => setApplicationsModal(false)} title="Driver Applications" size="md">
+        <div>
+          {applicationsJob && (
+            <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm mb-4">
+              <p className="font-medium text-gray-700">{applicationsJob.pickup_address} → {applicationsJob.dropoff_address}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{applicationsJob.job_date} at {applicationsJob.job_time}</p>
+            </div>
+          )}
+          {loadingApps ? (
+            <p className="text-sm text-gray-400 text-center py-8">Loading applications...</p>
+          ) : jobApplications.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-gray-400">No applications yet</p>
+              <p className="text-xs text-gray-300 mt-1">Drivers with matching vehicles will apply here</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {jobApplications.map(app => (
+                <div key={app.id} className={`p-4 rounded-xl border ${
+                  app.status === 'accepted' ? 'border-green-200 bg-green-50' :
+                  app.status === 'rejected' ? 'border-gray-100 bg-gray-50 opacity-60' :
+                  'border-gray-200 bg-white'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-gray-800 text-sm">{app.driver_name ?? 'Unknown Driver'}</p>
+                      {app.message && <p className="text-xs text-gray-500 mt-0.5 italic">"{app.message}"</p>}
+                      <p className="text-xs text-gray-400 mt-1">{new Date(app.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {app.status === 'pending' && (
+                        <button
+                          onClick={() => acceptApplication(app.id, app.driver_id, applicationsJob!.id)}
+                          className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700"
+                        >
+                          Accept
+                        </button>
+                      )}
+                      {app.status === 'accepted' && (
+                        <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">✓ Accepted</span>
+                      )}
+                      {app.status === 'rejected' && (
+                        <span className="text-xs text-gray-400">Rejected</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </Modal>
     </div>

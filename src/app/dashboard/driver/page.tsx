@@ -8,22 +8,29 @@ export default async function DriverDashboardPage() {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('full_name')
+    .select('full_name, company_id')
     .eq('id', user.id)
     .single()
 
   const { data: driverProfile } = await supabase
     .from('drivers')
-    .select('availability_status, rating, rating_count, is_verified, car_type')
+    .select('*')
     .eq('id', user.id)
     .single()
 
-  // Jobs are ONLY visible when assigned to this driver (RLS enforces this)
   const { data: jobs } = await supabase
     .from('jobs')
     .select('*')
     .eq('driver_id', user.id)
     .order('job_date', { ascending: true })
+
+  // Count open jobs for this driver's company (for badge)
+  const { count: openJobsCount } = await supabase
+    .from('jobs')
+    .select('*', { count: 'exact', head: true })
+    .eq('company_id', profile?.company_id)
+    .eq('open_for_applications', true)
+    .is('driver_id', null)
 
   return (
     <DriverDashboardClient
@@ -31,6 +38,7 @@ export default async function DriverDashboardPage() {
       driverProfile={driverProfile ?? null}
       jobs={jobs ?? []}
       driverId={user.id}
+      openJobsCount={openJobsCount ?? 0}
     />
   )
 }
