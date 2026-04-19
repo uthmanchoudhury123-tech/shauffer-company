@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Camera, Save, CheckCircle2, Star, Car, Shield, Phone } from 'lucide-react'
+import { Camera, Save, CheckCircle2, Star, Car, Shield, Phone, Zap } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { carTypeLabel } from '@/lib/utils'
 
@@ -17,10 +17,9 @@ interface Driver {
   rating: number
   rating_count: number
   is_verified: boolean
-  availability_status: string
 }
 
-export function DriverProfileClient({
+export function FreelancerProfileClient({
   userId,
   profile,
   driver,
@@ -83,10 +82,10 @@ export function DriverProfileClient({
     <div className="p-4 sm:p-6 max-w-2xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Update your details and vehicle information</p>
+        <p className="text-sm text-gray-500 mt-0.5">Update your details visible to companies posting jobs</p>
       </div>
 
-      {/* Profile photo + stats */}
+      {/* Profile hero */}
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 mb-6 text-white">
         <div className="flex items-center gap-5">
           <div className="relative flex-shrink-0">
@@ -108,7 +107,12 @@ export function DriverProfileClient({
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-xl font-bold truncate">{fullName || 'Your Name'}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold truncate">{fullName || 'Your Name'}</h2>
+              <span className="flex items-center gap-1 text-xs bg-blue-600/30 text-blue-300 px-2 py-0.5 rounded-full font-medium">
+                <Zap className="w-3 h-3" /> Freelancer
+              </span>
+            </div>
             <p className="text-sm text-white/60">{profile?.email}</p>
             {phone && <p className="text-sm text-white/50 mt-0.5">{phone}</p>}
             <div className="flex items-center gap-3 mt-2">
@@ -116,7 +120,7 @@ export function DriverProfileClient({
                 {[1,2,3,4,5].map(n => (
                   <Star key={n} className={`w-3.5 h-3.5 ${n <= Math.round(rating) ? 'text-yellow-400 fill-yellow-400' : 'text-white/20 fill-white/20'}`} />
                 ))}
-                <span className="text-xs text-white/60 ml-1">{rating > 0 ? `${rating.toFixed(1)} (${ratingCount})` : 'No ratings'}</span>
+                <span className="text-xs text-white/60 ml-1">{rating > 0 ? `${rating.toFixed(1)} (${ratingCount})` : 'No ratings yet'}</span>
               </div>
               {driver?.is_verified && (
                 <span className="flex items-center gap-1 text-xs text-blue-400">
@@ -137,33 +141,24 @@ export function DriverProfileClient({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Full Name</label>
-            <input
-              value={fullName}
-              onChange={e => setFullName(e.target.value)}
+            <input value={fullName} onChange={e => setFullName(e.target.value)}
               className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Your full name"
-            />
+              placeholder="Your full name" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
               <Phone className="w-3 h-3 text-gray-400" /> Phone
             </label>
-            <input
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
+            <input value={phone} onChange={e => setPhone(e.target.value)}
               className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="+44 7700 900000"
-            />
+              placeholder="+44 7700 900000" />
           </div>
         </div>
 
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1.5">Email</label>
-          <input
-            value={profile?.email ?? ''}
-            disabled
-            className="w-full px-3 py-2.5 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed"
-          />
+          <input value={profile?.email ?? ''} disabled
+            className="w-full px-3 py-2.5 text-sm border border-gray-100 rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed" />
           <p className="text-xs text-gray-400 mt-1">Email cannot be changed here</p>
         </div>
 

@@ -29,7 +29,7 @@ export default async function AdminLayout({
       .from('companies')
       .select('name, logo_url, subscription_status, trial_ends_at, stripe_subscription_id')
       .eq('id', profile.company_id)
-      .single()
+      .maybeSingle()
     company = data
   }
 

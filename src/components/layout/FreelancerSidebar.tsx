@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   Search, Briefcase, Wallet, CalendarDays, Bell,
   History, FileText, MessageSquare, Car, HelpCircle,
-  LogOut, X
+  LogOut, X, User
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -20,6 +20,7 @@ const NAV = [
   { href: '/dashboard/freelancer/chat', label: 'Chat', icon: MessageSquare },
   { href: '/dashboard/freelancer/vehicles', label: 'My Vehicles', icon: Car },
   { href: '/dashboard/freelancer/support', label: 'Support', icon: HelpCircle },
+  { href: '/dashboard/freelancer/profile', label: 'My Profile', icon: User },
 ]
 
 interface FreelancerSidebarProps {
