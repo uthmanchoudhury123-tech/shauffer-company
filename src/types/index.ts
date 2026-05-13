@@ -46,6 +46,7 @@ export interface Vehicle {
   status: VehicleStatus
   colour?: string
   photo_url?: string | null
+  notes?: string | null
   // Compliance dates
   mot_date?: string
   service_date?: string
@@ -88,19 +89,26 @@ export type JobStatus = 'pending' | 'assigned' | 'in_progress' | 'completed' | '
 export interface Job {
   id: string
   company_id: string
-  // Locations
+  // Locations — route_legs is ordered array of addresses; pickup/dropoff kept for compat
   pickup_address: string
   pickup_lat?: number
   pickup_lng?: number
   dropoff_address: string
   dropoff_lat?: number
   dropoff_lng?: number
+  route_legs?: string[] | null   // e.g. ["Heathrow T5", "Canary Wharf", "Westminster"]
   // Schedule
   job_date: string // ISO date
   job_time: string // HH:MM
+  end_time?: string | null       // HH:MM
+  // Job type
+  job_type?: 'standard' | 'daily'
+  hours_per_day?: number | null
+  number_of_days?: number | null
   // Details
   price: number
   preferred_car_type?: CarType
+  preferred_car_model?: string | null  // e.g. "Mercedes S Class W223"
   notes?: string
   // Status
   status: JobStatus

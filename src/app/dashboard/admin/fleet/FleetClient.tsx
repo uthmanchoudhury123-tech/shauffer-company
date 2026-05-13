@@ -29,6 +29,7 @@ const emptyForm = {
   status: 'available' as VehicleStatus,
   colour: '',
   photo_url: '',
+  notes: '',
   mot_date: '',
   service_date: '',
   road_tax_date: '',
@@ -87,6 +88,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
       status: v.status,
       colour: v.colour ?? '',
       photo_url: v.photo_url ?? '',
+      notes: v.notes ?? '',
       mot_date: v.mot_date ?? '',
       service_date: v.service_date ?? '',
       road_tax_date: v.road_tax_date ?? '',
@@ -111,6 +113,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
       insurance_date: form.insurance_date || null,
       colour: form.colour || null,
       photo_url: form.photo_url || null,
+      notes: form.notes || null,
     }
 
     if (editingVehicle) {
@@ -240,8 +243,10 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
                         </div>
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900">
-                        {v.year} {v.make} {v.model}
-                        {v.colour && <span className="text-gray-400 font-normal ml-1">({v.colour})</span>}
+                        <div>{v.year} {v.make} {v.model}
+                          {v.colour && <span className="text-gray-400 font-normal ml-1">({v.colour})</span>}
+                        </div>
+                        {v.notes && <p className="text-xs text-gray-400 font-normal mt-0.5 truncate max-w-48">{v.notes}</p>}
                       </td>
                       <td className="px-4 py-3 font-mono text-gray-700 uppercase">{v.registration}</td>
                       <td className="px-4 py-3 text-gray-600">{carTypeLabel(v.car_type)}</td>
@@ -387,6 +392,18 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
                 {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Notes <span className="text-gray-400">(optional)</span></label>
+            <textarea
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              value={form.notes}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Any notes about this vehicle..."
+            />
           </div>
 
           {/* Compliance Dates */}

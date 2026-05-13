@@ -60,8 +60,9 @@ export function MapClient({ drivers: initialDrivers, mapboxToken }: MapClientPro
   const [drivers, setDrivers] = useState<DriverMapData[]>(initialDrivers)
   const [selected, setSelected] = useState<DriverMapData | null>(null)
 
-  const locatedDrivers = drivers.filter(d => d.current_lat && d.current_lng)
-  const unlocatedDrivers = drivers.filter(d => !d.current_lat || !d.current_lng)
+  // Only show markers for drivers actively on a job with location data
+  const locatedDrivers = drivers.filter(d => d.availability_status === 'on_job' && d.current_lat && d.current_lng)
+  const unlocatedDrivers = drivers.filter(d => !(d.availability_status === 'on_job' && d.current_lat && d.current_lng))
 
   // 1. Initialise map
   useEffect(() => {
@@ -86,12 +87,12 @@ export function MapClient({ drivers: initialDrivers, mapboxToken }: MapClientPro
     }
   }, [mapboxToken])
 
-  // 2. Sync markers whenever drivers state changes
+  // 2. Sync markers whenever drivers state changes — only on_job drivers appear on map
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
 
-    const located = drivers.filter(d => d.current_lat && d.current_lng)
+    const located = drivers.filter(d => d.availability_status === 'on_job' && d.current_lat && d.current_lng)
 
     // Add or update markers
     located.forEach(driver => {
@@ -219,6 +220,7 @@ export function MapClient({ drivers: initialDrivers, mapboxToken }: MapClientPro
           <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
             <Users className="w-4 h-4" /> Drivers ({drivers.length})
           </h2>
+          <p className="text-xs text-gray-400 mt-0.5">Map shows on-job drivers only</p>
         </div>
 
         <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
@@ -257,12 +259,14 @@ export function MapClient({ drivers: initialDrivers, mapboxToken }: MapClientPro
           ))}
 
           {unlocatedDrivers.map(d => (
-            <div key={d.id} className="px-4 py-3 opacity-50">
+            <div key={d.id} className="px-4 py-3 opacity-40">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-gray-300 flex-shrink-0" />
                 <span className="text-sm text-gray-500 truncate">{d.full_name}</span>
               </div>
-              <p className="ml-4 text-xs text-gray-400 mt-0.5">No location data</p>
+              <p className="ml-4 text-xs text-gray-400 mt-0.5">
+                {d.availability_status === 'on_job' ? 'No location data' : d.availability_status.replace('_', ' ')}
+              </p>
             </div>
           ))}
         </div>
