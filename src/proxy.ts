@@ -105,8 +105,17 @@ export async function proxy(request: NextRequest) {
   }
 
   // Driver/freelancer accessing their dashboard — check onboarding is complete
+  // Uses service-role key (bypasses RLS) because the anon session context in
+  // middleware doesn't reliably set auth.uid() for PostgREST RLS policies.
   if (user && (pathname.startsWith('/dashboard/driver') || pathname.startsWith('/dashboard/freelancer'))) {
-    const { data: driver } = await supabase
+    const { createClient: createAdminSupa } = await import('@supabase/supabase-js')
+    const adminCheck = createAdminSupa(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
+    const { data: driver } = await adminCheck
       .from('drivers')
       .select('onboarding_complete')
       .eq('id', user.id)
