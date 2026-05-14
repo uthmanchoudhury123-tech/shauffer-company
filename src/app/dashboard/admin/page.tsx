@@ -3,9 +3,9 @@ import { StatCard } from '@/components/ui/StatCard'
 import { Badge } from '@/components/ui/Badge'
 import {
   Car, Users, Briefcase, AlertTriangle,
-  CheckCircle2, Clock, TrendingUp
+  CheckCircle2, Clock, TrendingUp, PoundSterling, ArrowUpRight
 } from 'lucide-react'
-import { formatDate, alertTypeLabel, alertSeverityColor } from '@/lib/utils'
+import { formatDate, alertTypeLabel, alertSeverityColor, formatCurrency } from '@/lib/utils'
 import type { Vehicle } from '@/types'
 import { getComplianceAlerts } from '@/lib/utils'
 
@@ -46,9 +46,46 @@ export default async function AdminOverviewPage() {
   const driversOnJob = drivers?.filter(d => d.availability_status === 'on_job').length ?? 0
 
   const today = new Date().toISOString().split('T')[0]
+  const startOfWeek = new Date(); startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
+  const weekStart = startOfWeek.toISOString().split('T')[0]
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+
   const pendingJobs = jobs?.filter(j => j.status === 'pending').length ?? 0
   const activeJobs = jobs?.filter(j => j.status === 'in_progress').length ?? 0
-  const completedToday = jobs?.filter(j => j.status === 'completed' && j.job_date === today).length ?? 0
+  const completedJobs = jobs?.filter(j => j.status === 'completed') ?? []
+  const completedToday = completedJobs.filter(j => j.job_date === today).length
+
+  // Revenue calculations
+  const revenueToday   = completedJobs.filter(j => j.job_date === today).reduce((s, j) => s + (j.price ?? 0), 0)
+  const revenueWeek    = completedJobs.filter(j => j.job_date >= weekStart).reduce((s, j) => s + (j.price ?? 0), 0)
+  const revenueMonth   = completedJobs.filter(j => j.job_date >= monthStart).reduce((s, j) => s + (j.price ?? 0), 0)
+  const revenueAllTime = completedJobs.reduce((s, j) => s + (j.price ?? 0), 0)
+
+  // Top earners by driver
+  const earningsByDriver: Record<string, { name: string; total: number; jobs: number }> = {}
+  for (const job of completedJobs) {
+    if (!job.driver_id) continue
+    const driver = drivers?.find(d => d.id === job.driver_id)
+    if (!earningsByDriver[job.driver_id]) {
+      earningsByDriver[job.driver_id] = { name: driver?.full_name ?? 'Unknown', total: 0, jobs: 0 }
+    }
+    earningsByDriver[job.driver_id].total += job.price ?? 0
+    earningsByDriver[job.driver_id].jobs += 1
+  }
+  const topEarners = Object.values(earningsByDriver)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5)
+
+  // Last 6 months revenue
+  const monthlyRevenue = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(); d.setMonth(d.getMonth() - (5 - i))
+    const label = d.toLocaleDateString('en-GB', { month: 'short' })
+    const ms = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]
+    const me = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]
+    const total = completedJobs.filter(j => j.job_date >= ms && j.job_date <= me).reduce((s, j) => s + (j.price ?? 0), 0)
+    return { label, total }
+  })
+  const maxMonthly = Math.max(...monthlyRevenue.map(m => m.total), 1)
 
   // Compliance alerts
   const allAlerts = (vehicles as Vehicle[] ?? []).flatMap(v => getComplianceAlerts(v))
@@ -95,6 +132,75 @@ export default async function AdminOverviewPage() {
           icon={<TrendingUp className="w-5 h-5" />}
           className="[&>div:first-child]:bg-purple-50 [&>div:first-child]:text-purple-600"
         />
+      </div>
+
+      {/* Revenue Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {[
+          { label: "Today's Revenue",  value: revenueToday,   sub: `${completedJobs.filter(j=>j.job_date===today).length} jobs` },
+          { label: 'This Week',        value: revenueWeek,    sub: `${completedJobs.filter(j=>j.job_date>=weekStart).length} jobs` },
+          { label: 'This Month',       value: revenueMonth,   sub: `${completedJobs.filter(j=>j.job_date>=monthStart).length} jobs` },
+          { label: 'All Time',         value: revenueAllTime, sub: `${completedJobs.length} completed` },
+        ].map(({ label, value, sub }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-gray-500">{label}</span>
+              <PoundSterling className="w-4 h-4 text-green-500" />
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(value)}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Revenue Chart + Top Earners */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        {/* Monthly bar chart */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-blue-500" /> Revenue — Last 6 Months
+          </h2>
+          {revenueAllTime === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">No completed jobs yet</p>
+          ) : (
+            <div className="flex items-end gap-2 h-32">
+              {monthlyRevenue.map(({ label, total }) => (
+                <div key={label} className="flex-1 flex flex-col items-center gap-1">
+                  <span className="text-xs text-gray-500 font-medium">{total > 0 ? formatCurrency(total).replace('£','£') : ''}</span>
+                  <div className="w-full rounded-t-md bg-blue-100 relative" style={{ height: `${Math.max((total / maxMonthly) * 80, total > 0 ? 4 : 0)}px` }}>
+                    <div className="absolute inset-0 rounded-t-md bg-blue-500 opacity-80" />
+                  </div>
+                  <span className="text-xs text-gray-400">{label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Top earners */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            <ArrowUpRight className="w-4 h-4 text-green-500" /> Top Earners
+          </h2>
+          {topEarners.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">No completed jobs yet</p>
+          ) : (
+            <div className="space-y-3">
+              {topEarners.map((e, i) => (
+                <div key={e.name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-xs font-bold flex items-center justify-center">{i + 1}</span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{e.name}</p>
+                      <p className="text-xs text-gray-400">{e.jobs} job{e.jobs !== 1 ? 's' : ''}</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-green-600">{formatCurrency(e.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">

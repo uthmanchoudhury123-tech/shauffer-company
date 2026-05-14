@@ -5,13 +5,14 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   Search, Briefcase, Wallet, CalendarDays, Bell,
   History, FileText, MessageSquare, Car, HelpCircle,
-  LogOut, X, User
+  LogOut, X, User, PoundSterling
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV = [
   { href: '/dashboard/freelancer/available-jobs', label: 'Available Jobs', icon: Search },
   { href: '/dashboard/freelancer/my-jobs', label: 'My Jobs', icon: Briefcase },
+  { href: '/dashboard/freelancer/earnings', label: 'Earnings', icon: PoundSterling },
   { href: '/dashboard/freelancer/wallet', label: 'Wallet', icon: Wallet },
   { href: '/dashboard/freelancer/schedule', label: 'Schedule', icon: CalendarDays },
   { href: '/dashboard/freelancer/notifications', label: 'Notifications', icon: Bell },
