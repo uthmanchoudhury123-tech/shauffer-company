@@ -12,10 +12,9 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient()
 
+  // Step 1: upsert core driver fields (no onboarding_complete yet — safer if migration hasn't run)
   const [{ error: e1 }, { error: e2 }] = await Promise.all([
-    // Update display name in auth profile
     admin.from('user_profiles').update({ full_name: full_name.trim() }).eq('id', user.id),
-    // Upsert driver record (may or may not already exist from invite flow)
     admin.from('drivers').upsert({
       id: user.id,
       full_name: full_name.trim(),
@@ -24,10 +23,19 @@ export async function POST(req: Request) {
       licence_number: licence_number || null,
       licence_expiry: licence_expiry || null,
       photo_url: photo_url || null,
-      onboarding_complete: true,
     }, { onConflict: 'id' }),
   ])
 
-  if (e1 || e2) return NextResponse.json({ error: e1?.message ?? e2?.message }, { status: 500 })
+  if (e1) return NextResponse.json({ error: `Profile update failed: ${e1.message}` }, { status: 500 })
+  if (e2) return NextResponse.json({ error: `Driver record failed: ${e2.message}` }, { status: 500 })
+
+  // Step 2: mark onboarding complete (separate update so any column error is distinct)
+  const { error: e3 } = await admin
+    .from('drivers')
+    .update({ onboarding_complete: true })
+    .eq('id', user.id)
+
+  if (e3) return NextResponse.json({ error: `Could not mark onboarding complete: ${e3.message}` }, { status: 500 })
+
   return NextResponse.json({ success: true })
 }

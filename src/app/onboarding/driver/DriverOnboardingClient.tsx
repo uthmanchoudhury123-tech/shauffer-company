@@ -67,28 +67,34 @@ export function DriverOnboardingClient({
     setSaving(true)
     setError('')
 
-    const res = await fetch('/api/driver/onboard', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        full_name: fullName,
-        phone,
-        car_type: carType,
-        vehicle_photo_url: vehiclePhotoUrl || null,
-        licence_number: licenceNumber,
-        licence_expiry: licenceExpiry || null,
-        photo_url: photoUrl || null,
-      }),
-    })
+    try {
+      const res = await fetch('/api/driver/onboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: fullName,
+          phone,
+          car_type: carType,
+          licence_number: licenceNumber,
+          licence_expiry: licenceExpiry || null,
+          photo_url: photoUrl || null,
+        }),
+      })
 
-    const data = await res.json()
-    if (!res.ok) {
-      setError(data.error ?? 'Something went wrong')
+      let data: { error?: string; success?: boolean } = {}
+      try { data = await res.json() } catch { /* non-JSON response */ }
+
+      if (!res.ok) {
+        setError(data.error ?? `Server error (${res.status}) — please try again`)
+        setSaving(false)
+        return
+      }
+
+      window.location.href = isFreelancer ? '/dashboard/freelancer' : '/dashboard/driver'
+    } catch (err) {
+      setError('Network error — please check your connection and try again')
       setSaving(false)
-      return
     }
-
-    window.location.href = isFreelancer ? '/dashboard/freelancer' : '/dashboard/driver'
   }
 
   return (
