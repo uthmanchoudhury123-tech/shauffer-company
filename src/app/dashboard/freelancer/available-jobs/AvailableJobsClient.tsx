@@ -1,11 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { MapPin, Clock, Car, Star, Search, Plus, ChevronDown } from 'lucide-react'
+import { MapPin, Clock, Car, Star, Search, Plus, Globe, Users, User2, X, Lock } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { formatDate, formatCurrency, carTypeLabel } from '@/lib/utils'
 import type { CarType } from '@/types'
+
+interface DriverSearchResult {
+  id: string
+  full_name: string
+  car_type: string
+  driver_category: string
+  company_name: string | null
+}
 
 interface FreelancerJob {
   id: string
@@ -18,6 +26,7 @@ interface FreelancerJob {
   required_car_make: string | null
   required_car_model: string | null
   notes: string | null
+  visibility?: string
   posted_by_driver: { id: string; full_name: string; rating: number } | null
 }
 
@@ -56,6 +65,25 @@ export function AvailableJobsClient({ jobs: initial, appliedJobIds: initialAppli
     notes: '',
   })
 
+  // Visibility state
+  const [postVisibility, setPostVisibility] = useState<'all' | 'direct'>('all')
+  const [targetDrivers, setTargetDrivers] = useState<DriverSearchResult[]>([])
+  const [driverSearch, setDriverSearch] = useState('')
+  const [driverResults, setDriverResults] = useState<DriverSearchResult[]>([])
+  const [driverSearching, setDriverSearching] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setDriverResults([])
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [])
+
   const filtered = jobs.filter(j =>
     j.pickup_address.toLowerCase().includes(search.toLowerCase()) ||
     j.dropoff_address.toLowerCase().includes(search.toLowerCase())
@@ -78,13 +106,51 @@ export function AvailableJobsClient({ jobs: initial, appliedJobIds: initialAppli
     setApplying(false)
   }
 
+  async function searchDrivers(q: string) {
+    setDriverSearch(q)
+    if (q.length < 2) { setDriverResults([]); return }
+    setDriverSearching(true)
+    try {
+      const res = await fetch(`/api/drivers/search?q=${encodeURIComponent(q)}`)
+      const data = await res.json()
+      setDriverResults(Array.isArray(data) ? data : [])
+    } finally {
+      setDriverSearching(false)
+    }
+  }
+
+  function addTargetDriver(d: DriverSearchResult) {
+    if (!targetDrivers.find(x => x.id === d.id)) {
+      setTargetDrivers(prev => [...prev, d])
+    }
+    setDriverSearch('')
+    setDriverResults([])
+  }
+
+  function removeTargetDriver(id: string) {
+    setTargetDrivers(prev => prev.filter(d => d.id !== id))
+  }
+
+  function openPostModal() {
+    setPostError('')
+    setPostVisibility('all')
+    setTargetDrivers([])
+    setDriverSearch('')
+    setDriverResults([])
+    setPostModal(true)
+  }
+
   async function handlePost() {
     setPosting(true)
     setPostError('')
     const res = await fetch('/api/freelancer/jobs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(postForm),
+      body: JSON.stringify({
+        ...postForm,
+        visibility: postVisibility,
+        target_driver_ids: targetDrivers.map(d => d.id),
+      }),
     })
     const json = await res.json()
     if (!res.ok) { setPostError(json.error); setPosting(false); return }
@@ -102,7 +168,7 @@ export function AvailableJobsClient({ jobs: initial, appliedJobIds: initialAppli
           <p className="text-sm text-gray-500 mt-0.5">{filtered.length} job{filtered.length !== 1 ? 's' : ''} available</p>
         </div>
         <button
-          onClick={() => { setPostError(''); setPostModal(true) }}
+          onClick={openPostModal}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -162,6 +228,12 @@ export function AvailableJobsClient({ jobs: initial, appliedJobIds: initialAppli
                             ? `${job.required_car_make}${job.required_car_model ? ` ${job.required_car_model}` : ''}`
                             : carTypeLabel(job.preferred_car_type!)
                           }
+                        </span>
+                      )}
+                      {job.visibility === 'direct' && (
+                        <span className="flex items-center gap-1 text-purple-500">
+                          <Lock className="w-3.5 h-3.5" />
+                          Sent to you
                         </span>
                       )}
                     </div>
@@ -316,12 +388,113 @@ export function AvailableJobsClient({ jobs: initial, appliedJobIds: initialAppli
               placeholder="Any special requirements..." />
           </div>
 
+          {/* ── Visibility ── */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-2">Who can see this job?</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPostVisibility('all')}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                  postVisibility === 'all'
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-white border-gray-200 text-gray-700 hover:border-blue-300'
+                }`}
+              >
+                <Globe className="w-4 h-4 flex-shrink-0" />
+                All Drivers
+              </button>
+              <button
+                type="button"
+                onClick={() => setPostVisibility('direct')}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                  postVisibility === 'direct'
+                    ? 'bg-purple-600 border-purple-600 text-white'
+                    : 'bg-white border-gray-200 text-gray-700 hover:border-purple-300'
+                }`}
+              >
+                <User2 className="w-4 h-4 flex-shrink-0" />
+                Specific Drivers
+              </button>
+            </div>
+
+            {/* Direct targeting — driver search */}
+            {postVisibility === 'direct' && (
+              <div className="mt-3 space-y-2">
+                {/* Selected drivers */}
+                {targetDrivers.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {targetDrivers.map(d => (
+                      <span key={d.id} className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 border border-purple-200 rounded-full text-xs text-purple-700">
+                        <User2 className="w-3 h-3" />
+                        {d.full_name}
+                        <button type="button" onClick={() => removeTargetDriver(d.id)} className="hover:text-red-500 transition-colors">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Search input */}
+                <div className="relative" ref={searchRef}>
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                  <input
+                    className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="Search driver by name…"
+                    value={driverSearch}
+                    onChange={e => searchDrivers(e.target.value)}
+                  />
+                  {/* Dropdown */}
+                  {(driverResults.length > 0 || driverSearching) && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                      {driverSearching ? (
+                        <div className="px-4 py-3 text-sm text-gray-400">Searching…</div>
+                      ) : driverResults.length === 0 ? (
+                        <div className="px-4 py-3 text-sm text-gray-400">No drivers found</div>
+                      ) : (
+                        driverResults.map(d => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onMouseDown={() => addTargetDriver(d)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-left"
+                          >
+                            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600 flex-shrink-0">
+                              {d.full_name.charAt(0)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-800">{d.full_name}</p>
+                              <p className="text-xs text-gray-400">{d.driver_category ?? 'freelance'}{d.company_name ? ` · ${d.company_name}` : ''}</p>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                {targetDrivers.length === 0 && (
+                  <p className="text-xs text-gray-400">Search and add at least one driver to target.</p>
+                )}
+              </div>
+            )}
+          </div>
+
           {postError && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{postError}</p>}
 
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={() => setPostModal(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg">Cancel</button>
-            <button onClick={handlePost} disabled={posting || !postForm.pickup_address || !postForm.dropoff_address || !postForm.price}
-              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium">
+            <button
+              onClick={handlePost}
+              disabled={
+                posting ||
+                !postForm.pickup_address ||
+                !postForm.dropoff_address ||
+                !postForm.price ||
+                (postVisibility === 'direct' && targetDrivers.length === 0)
+              }
+              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium"
+            >
               {posting ? 'Posting...' : 'Post Job'}
             </button>
           </div>

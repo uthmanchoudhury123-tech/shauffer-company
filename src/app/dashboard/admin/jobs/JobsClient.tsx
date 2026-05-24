@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Plus, Briefcase, Search, MapPin, Clock, UserCheck,
   ArrowRight, ChevronDown, ChevronUp, X, Repeat,
+  Building2, Globe, User2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
@@ -28,8 +29,16 @@ interface JobsClientProps {
   createdBy: string
 }
 
+interface DriverSearchResult {
+  id: string
+  full_name: string
+  car_type: string
+  driver_category: string
+  company_name: string | null
+}
+
 const emptyForm = {
-  route_legs: ['', ''] as string[],  // ordered stops; consecutive pairs = legs
+  route_legs: ['', ''] as string[],
   job_date: new Date().toISOString().split('T')[0],
   job_time: '09:00',
   end_time: '',
@@ -42,6 +51,8 @@ const emptyForm = {
   notes: '',
   driver_id: '',
   open_for_applications: false,
+  visibility: 'company' as 'company' | 'platform' | 'direct',
+  target_drivers: [] as DriverSearchResult[],
 }
 
 function getLegs(job: Job): { from: string; to: string }[] {
@@ -65,6 +76,32 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // Driver search for direct targeting
+  const [driverSearchQ, setDriverSearchQ] = useState('')
+  const [driverSearchResults, setDriverSearchResults] = useState<DriverSearchResult[]>([])
+  const [searchingDrivers, setSearchingDrivers] = useState(false)
+
+  async function searchDrivers(q: string) {
+    setDriverSearchQ(q)
+    if (q.length < 2) { setDriverSearchResults([]); return }
+    setSearchingDrivers(true)
+    const res = await fetch(`/api/drivers/search?q=${encodeURIComponent(q)}`)
+    const data = await res.json()
+    setDriverSearchResults(data)
+    setSearchingDrivers(false)
+  }
+
+  function addTargetDriver(d: DriverSearchResult) {
+    if (form.target_drivers.find(t => t.id === d.id)) return
+    setForm(f => ({ ...f, target_drivers: [...f.target_drivers, d] }))
+    setDriverSearchQ('')
+    setDriverSearchResults([])
+  }
+
+  function removeTargetDriver(id: string) {
+    setForm(f => ({ ...f, target_drivers: f.target_drivers.filter(d => d.id !== id) }))
+  }
 
   // Assign modal
   const [assignModal, setAssignModal] = useState(false)
@@ -119,6 +156,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       return
     }
 
+    const isDirected = form.visibility === 'direct'
     const payload = {
       company_id: companyId,
       created_by: createdBy,
@@ -137,7 +175,9 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       notes: form.notes || null,
       status: (form.driver_id ? 'assigned' : 'pending') as JobStatus,
       driver_id: form.driver_id || null,
-      open_for_applications: form.driver_id ? false : form.open_for_applications,
+      open_for_applications: isDirected ? false : (form.driver_id ? false : form.open_for_applications),
+      visibility: form.visibility,
+      target_driver_ids: isDirected ? form.target_drivers.map(d => d.id) : [],
     }
 
     const { data, error: err } = await supabase
@@ -609,7 +649,86 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             />
           </div>
 
+          {/* Visibility */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-2">Who can see this job?</label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { key: 'company',  icon: Building2, label: 'Company Only',   desc: 'Your drivers' },
+                { key: 'platform', icon: Globe,     label: 'All Drivers',    desc: 'Incl. freelancers' },
+                { key: 'direct',   icon: User2,     label: 'Specific Driver', desc: 'Pick by name' },
+              ] as const).map(({ key, icon: Icon, label, desc }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, visibility: key, target_drivers: [], open_for_applications: key !== 'direct' ? f.open_for_applications : false }))}
+                  className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-xs transition-colors ${
+                    form.visibility === key
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="font-semibold">{label}</span>
+                  <span className="text-gray-400">{desc}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Direct targeting: driver search */}
+            {form.visibility === 'direct' && (
+              <div className="mt-3 space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                  <input
+                    className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Search driver by name..."
+                    value={driverSearchQ}
+                    onChange={e => searchDrivers(e.target.value)}
+                  />
+                  {searchingDrivers && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">…</span>
+                  )}
+                </div>
+
+                {driverSearchResults.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                    {driverSearchResults.map(d => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => addTargetDriver(d)}
+                        className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center justify-between text-sm border-b border-gray-100 last:border-0"
+                      >
+                        <span className="font-medium text-gray-800">{d.full_name}</span>
+                        <span className="text-xs text-gray-400">{d.company_name ?? 'Freelancer'}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {form.target_drivers.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {form.target_drivers.map(d => (
+                      <span key={d.id} className="flex items-center gap-1 bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded-full font-medium">
+                        {d.full_name}
+                        <button type="button" onClick={() => removeTargetDriver(d.id)} className="hover:text-red-500">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {form.target_drivers.length === 0 && (
+                  <p className="text-xs text-amber-600">Search and add at least one driver to target</p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Open for applications toggle */}
+          {form.visibility !== 'direct' && (
           <div className="flex items-center justify-between py-3 px-4 bg-blue-50 rounded-lg border border-blue-100">
             <div>
               <p className="text-sm font-medium text-blue-900">Open for Driver Applications</p>
@@ -632,8 +751,10 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             </button>
           </div>
 
+          )} {/* end visibility !== direct */}
+
           {/* Assign driver */}
-          {!form.open_for_applications && (
+          {form.visibility !== 'direct' && !form.open_for_applications && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Assign Driver (optional)</label>
               <select
@@ -673,7 +794,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             </button>
             <button
               onClick={handleCreate}
-              disabled={saving || form.route_legs.filter(s => s.trim()).length < 2}
+              disabled={saving || form.route_legs.filter(s => s.trim()).length < 2 || (form.visibility === 'direct' && form.target_drivers.length === 0)}
               className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium"
             >
               {saving ? 'Creating...' : 'Create Job'}

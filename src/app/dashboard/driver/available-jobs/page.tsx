@@ -27,7 +27,7 @@ export default async function AvailableJobsPage() {
     .eq('status', 'available')
     .order('make')
 
-  // Get open jobs for this company
+  // Get all open jobs for this company (we'll filter by visibility in JS)
   const { data: allOpenJobs } = await supabase
     .from('jobs')
     .select('*')
@@ -36,9 +36,23 @@ export default async function AvailableJobsPage() {
     .is('driver_id', null)
     .order('job_date', { ascending: true })
 
-  // Filter to jobs matching driver's car type
+  // Visibility filter:
+  //   'company'  → show to all company drivers (default)
+  //   'platform' → show to everyone, including company drivers
+  //   'direct'   → only if user.id is in target_driver_ids
+  const visibilityFiltered = (allOpenJobs ?? []).filter(j => {
+    const vis = j.visibility ?? 'company'
+    if (vis === 'company' || vis === 'platform') return true
+    if (vis === 'direct') {
+      const ids: string[] = Array.isArray(j.target_driver_ids) ? j.target_driver_ids : []
+      return ids.includes(user.id)
+    }
+    return false
+  })
+
+  // Further filter to jobs matching driver's car type
   const driverCarType = driver?.car_type
-  const matchingJobs = (allOpenJobs ?? []).filter(j =>
+  const matchingJobs = visibilityFiltered.filter(j =>
     !j.preferred_car_type || j.preferred_car_type === driverCarType
   )
 
@@ -51,7 +65,7 @@ export default async function AvailableJobsPage() {
   return (
     <AvailableJobsClient
       jobs={matchingJobs}
-      allOpenJobs={allOpenJobs ?? []}
+      allOpenJobs={visibilityFiltered}
       myVehicles={companyVehicles ?? []}
       myApplications={myApplications ?? []}
       driverId={user.id}
