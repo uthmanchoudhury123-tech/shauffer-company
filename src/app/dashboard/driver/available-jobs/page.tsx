@@ -27,22 +27,23 @@ export default async function AvailableJobsPage() {
     .eq('status', 'available')
     .order('make')
 
-  // Get all open jobs for this company (we'll filter by visibility in JS)
+  // Get all unassigned pending jobs for this company
   const { data: allOpenJobs } = await supabase
     .from('jobs')
     .select('*')
     .eq('company_id', profile?.company_id ?? '')
-    .eq('open_for_applications', true)
+    .in('status', ['pending'])
     .is('driver_id', null)
     .order('job_date', { ascending: true })
 
   // Visibility filter:
-  //   'company'  → show to all company drivers (default)
-  //   'platform' → show to everyone, including company drivers
+  //   'company'  → show only if open_for_applications = true
+  //   'platform' → always visible (broadcast to all drivers)
   //   'direct'   → only if user.id is in target_driver_ids
   const visibilityFiltered = (allOpenJobs ?? []).filter(j => {
     const vis = j.visibility ?? 'company'
-    if (vis === 'company' || vis === 'platform') return true
+    if (vis === 'platform') return true
+    if (vis === 'company') return j.open_for_applications === true
     if (vis === 'direct') {
       const ids: string[] = Array.isArray(j.target_driver_ids) ? j.target_driver_ids : []
       return ids.includes(user.id)

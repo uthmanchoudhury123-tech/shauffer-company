@@ -238,7 +238,10 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       notes: form.notes || null,
       status: (form.driver_id ? 'assigned' : 'pending') as JobStatus,
       driver_id: form.driver_id || null,
-      open_for_applications: isDirected ? false : (form.driver_id ? false : form.open_for_applications),
+      // platform = broadcast to all drivers → always open for applications
+      // direct   = specific driver(s) → never open for general applications
+      // company  = follow the toggle
+      open_for_applications: isDirected ? false : (form.driver_id ? false : (form.visibility === 'platform' ? true : form.open_for_applications)),
       visibility: form.visibility,
       target_driver_ids: isDirected ? form.target_drivers.map(d => d.id) : [],
     }
