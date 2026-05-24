@@ -1,9 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
-import { Search, Users, Star, CheckCircle } from 'lucide-react'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { Users, Star, CheckCircle } from 'lucide-react'
 import { carTypeLabel } from '@/lib/utils'
 
 export default async function SuperAdminDriversPage() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data: drivers } = await supabase
     .from('drivers')

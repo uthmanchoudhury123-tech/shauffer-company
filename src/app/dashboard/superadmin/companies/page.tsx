@@ -1,8 +1,8 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { CompaniesClient } from './CompaniesClient'
 
 export default async function SuperAdminCompaniesPage() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data: companies } = await supabase
     .from('companies')

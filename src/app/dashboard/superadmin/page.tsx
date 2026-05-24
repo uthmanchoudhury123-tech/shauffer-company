@@ -1,9 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { Building2, Users, Briefcase, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react'
 import type { SuperAdminStats } from '@/types'
 
 export default async function SuperAdminPage() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const today = new Date().toISOString().split('T')[0]
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
