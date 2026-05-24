@@ -10,10 +10,56 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
+import { LocationAutocomplete } from '@/components/ui/LocationAutocomplete'
 import { jobStatusColor, carTypeLabel, formatDate, formatCurrency } from '@/lib/utils'
 import type { Job, JobStatus, CarType } from '@/types'
 
 const CAR_TYPES: CarType[] = ['saloon', 'estate', 'suv', 'mpv', 'minibus', 'executive', 'van']
+
+// Common models per car category for UK chauffeur industry
+const CAR_MODELS_BY_TYPE: Partial<Record<CarType, string[]>> = {
+  saloon: [
+    'Mercedes-Benz C-Class', 'Mercedes-Benz E-Class',
+    'BMW 3 Series', 'BMW 5 Series',
+    'Audi A4', 'Audi A6',
+    'Jaguar XE', 'Jaguar XF',
+    'Tesla Model 3', 'Lexus ES', 'Volvo S90',
+  ],
+  executive: [
+    'Mercedes-Benz S-Class', 'Mercedes-Benz Maybach S-Class',
+    'BMW 7 Series', 'Audi A8',
+    'Bentley Flying Spur', 'Rolls-Royce Ghost', 'Rolls-Royce Phantom',
+    'Maserati Quattroporte', 'Jaguar XJ',
+    'Lexus LS', 'Tesla Model S',
+  ],
+  suv: [
+    'Range Rover Vogue', 'Range Rover Sport', 'Range Rover Autobiography',
+    'Mercedes-Benz GLE', 'Mercedes-Benz GLS',
+    'BMW X5', 'BMW X7',
+    'Audi Q7', 'Audi Q8',
+    'Porsche Cayenne', 'Volvo XC90',
+    'Tesla Model X', 'Bentley Bentayga', 'Rolls-Royce Cullinan',
+  ],
+  estate: [
+    'Mercedes-Benz E-Class Estate', 'BMW 5 Series Touring',
+    'Audi A6 Avant', 'Volvo V90',
+    'Jaguar XF Sportbrake', 'Skoda Superb Estate',
+  ],
+  mpv: [
+    'Mercedes-Benz V-Class', 'Volkswagen Caravelle',
+    'Ford Galaxy', 'SEAT Alhambra', 'Chrysler Grand Voyager',
+  ],
+  minibus: [
+    'Mercedes-Benz Sprinter Minibus', 'Ford Transit Minibus',
+    'Volkswagen Crafter Minibus', 'Iveco Daily Minibus',
+    'Toyota HiAce', 'Ford Tourneo Custom',
+  ],
+  van: [
+    'Mercedes-Benz Vito', 'Mercedes-Benz Sprinter',
+    'Ford Transit', 'Volkswagen Transporter',
+    'Renault Trafic', 'Vauxhall Vivaro',
+  ],
+}
 
 interface DriverOption {
   id: string
@@ -125,7 +171,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
     return matchSearch && matchStatus
   })
 
-  // --- Route legs helpers ---
+  // Route legs helpers
   function updateLeg(idx: number, value: string) {
     setForm(f => {
       const legs = [...f.route_legs]
@@ -144,13 +190,30 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
     })
   }
 
+  // When switching job type, adjust route_legs length
+  function setJobType(t: 'standard' | 'daily') {
+    setForm(f => ({
+      ...f,
+      job_type: t,
+      // daily = single location; standard = pickup + dropoff
+      route_legs: t === 'daily' ? [f.route_legs[0] ?? ''] : [f.route_legs[0] ?? '', f.route_legs[1] ?? ''],
+    }))
+  }
+
   async function handleCreate() {
     setSaving(true)
     setError('')
     const supabase = createClient()
 
+    const isDaily = form.job_type === 'daily'
     const stops = form.route_legs.map(s => s.trim()).filter(Boolean)
-    if (stops.length < 2) {
+
+    if (isDaily && stops.length < 1) {
+      setError('Please enter a job location.')
+      setSaving(false)
+      return
+    }
+    if (!isDaily && stops.length < 2) {
       setError('Please fill in at least a pickup and drop-off address.')
       setSaving(false)
       return
@@ -161,14 +224,14 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       company_id: companyId,
       created_by: createdBy,
       pickup_address: stops[0],
-      dropoff_address: stops[stops.length - 1],
-      route_legs: stops,
+      dropoff_address: isDaily ? stops[0] : stops[stops.length - 1],
+      route_legs: isDaily ? stops : stops,
       job_date: form.job_date,
       job_time: form.job_time,
       end_time: form.end_time || null,
       job_type: form.job_type,
-      hours_per_day: form.job_type === 'daily' && form.hours_per_day ? Number(form.hours_per_day) : null,
-      number_of_days: form.job_type === 'daily' && form.number_of_days ? Number(form.number_of_days) : null,
+      hours_per_day: isDaily && form.hours_per_day ? Number(form.hours_per_day) : null,
+      number_of_days: isDaily && form.number_of_days ? Number(form.number_of_days) : null,
       price: Number(form.price) || 0,
       preferred_car_type: form.preferred_car_type || null,
       preferred_car_model: form.preferred_car_model || null,
@@ -196,7 +259,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
         body: JSON.stringify({
           driverId: form.driver_id,
           title: 'New Job Assigned',
-          body: `${stops[0]} → ${stops[stops.length - 1]}`,
+          body: `${stops[0]}${!isDaily ? ` → ${stops[stops.length - 1]}` : ''}`,
           url: '/dashboard/driver/jobs',
         }),
       }).catch(() => {})
@@ -283,6 +346,9 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
     }).catch(() => {})
   }
 
+  const isDaily = form.job_type === 'daily'
+  const modelOptions = form.preferred_car_type ? (CAR_MODELS_BY_TYPE[form.preferred_car_type as CarType] ?? []) : []
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl">
       {/* Header */}
@@ -343,20 +409,22 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             const legs = getLegs(job)
             const isMultiLeg = legs.length > 1
             const isExpanded = expandedJob === job.id
-            const isDaily = job.job_type === 'daily'
+            const jobIsDaily = job.job_type === 'daily'
 
             return (
               <div key={job.id} className="bg-white rounded-xl border border-gray-200 hover:shadow-sm transition-shadow">
                 <div className="p-4">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      {/* Route — first leg always visible */}
+                      {/* Route */}
                       <div className="space-y-1 text-sm">
                         <div className="flex items-center gap-2">
                           <MapPin className="w-4 h-4 text-green-500 flex-shrink-0" />
                           <span className="font-medium text-gray-800 truncate">{legs[0].from}</span>
                         </div>
-                        {isMultiLeg ? (
+                        {jobIsDaily ? (
+                          <span className="ml-6 text-xs text-amber-600 font-medium">Daily Hire</span>
+                        ) : isMultiLeg ? (
                           <div className="flex items-center gap-1.5 ml-4">
                             <div className="flex items-center gap-1 text-xs text-blue-600 font-medium">
                               <Repeat className="w-3 h-3" />
@@ -399,7 +467,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                           {formatDate(job.job_date)} {job.job_time}
                           {job.end_time && <span>– {job.end_time}</span>}
                         </span>
-                        {isDaily && (
+                        {jobIsDaily && (
                           <span className="text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full">
                             Daily{job.hours_per_day ? ` · ${job.hours_per_day}h/day` : ''}{job.number_of_days ? ` · ${job.number_of_days} day${job.number_of_days !== 1 ? 's' : ''}` : ''}
                           </span>
@@ -492,7 +560,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
               <button
                 key={t}
                 type="button"
-                onClick={() => setForm(f => ({ ...f, job_type: t }))}
+                onClick={() => setJobType(t)}
                 className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
                   form.job_type === t
                     ? 'border-blue-500 bg-blue-50 text-blue-700'
@@ -507,33 +575,41 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
           {/* Route builder */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium text-gray-700">Route *</label>
-              <span className="text-xs text-gray-400">{form.route_legs.length - 1} leg{form.route_legs.length - 1 !== 1 ? 's' : ''}</span>
+              <label className="text-xs font-medium text-gray-700">
+                {isDaily ? 'Job Location *' : 'Route *'}
+              </label>
+              {!isDaily && (
+                <span className="text-xs text-gray-400">{form.route_legs.length - 1} leg{form.route_legs.length - 1 !== 1 ? 's' : ''}</span>
+              )}
             </div>
             <div className="space-y-2">
               {form.route_legs.map((stop, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <div className="flex flex-col items-center gap-0.5 w-5 flex-shrink-0">
-                    <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${
-                      idx === 0 ? 'border-green-500 bg-green-500' :
-                      idx === form.route_legs.length - 1 ? 'border-red-500 bg-red-500' :
-                      'border-blue-400 bg-blue-400'
-                    }`} />
-                    {idx < form.route_legs.length - 1 && (
-                      <div className="w-0.5 h-4 bg-gray-200" />
-                    )}
+                  {!isDaily && (
+                    <div className="flex flex-col items-center gap-0.5 w-5 flex-shrink-0">
+                      <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${
+                        idx === 0 ? 'border-green-500 bg-green-500' :
+                        idx === form.route_legs.length - 1 ? 'border-red-500 bg-red-500' :
+                        'border-blue-400 bg-blue-400'
+                      }`} />
+                      {idx < form.route_legs.length - 1 && (
+                        <div className="w-0.5 h-4 bg-gray-200" />
+                      )}
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <LocationAutocomplete
+                      value={stop}
+                      onChange={v => updateLeg(idx, v)}
+                      placeholder={
+                        isDaily ? 'Enter job location...' :
+                        idx === 0 ? 'Pickup address...' :
+                        idx === form.route_legs.length - 1 ? 'Drop-off address...' :
+                        `Stop ${idx + 1}...`
+                      }
+                    />
                   </div>
-                  <input
-                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={stop}
-                    onChange={e => updateLeg(idx, e.target.value)}
-                    placeholder={
-                      idx === 0 ? 'Pickup address...' :
-                      idx === form.route_legs.length - 1 ? 'Drop-off address...' :
-                      `Stop ${idx + 1}...`
-                    }
-                  />
-                  {form.route_legs.length > 2 && (
+                  {!isDaily && form.route_legs.length > 2 && (
                     <button
                       type="button"
                       onClick={() => removeLeg(idx)}
@@ -545,13 +621,15 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                 </div>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={addLeg}
-              className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Leg
-            </button>
+            {!isDaily && (
+              <button
+                type="button"
+                onClick={addLeg}
+                className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Leg
+              </button>
+            )}
           </div>
 
           {/* Date & Times */}
@@ -586,7 +664,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
           </div>
 
           {/* Daily hire fields */}
-          {form.job_type === 'daily' && (
+          {isDaily && (
             <div className="grid grid-cols-2 gap-4 bg-amber-50 rounded-lg p-3 border border-amber-100">
               <div>
                 <label className="block text-xs font-medium text-amber-800 mb-1">Hours per day</label>
@@ -611,7 +689,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             </div>
           )}
 
-          {/* Price & Preferred Car */}
+          {/* Price & Car Category */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Price (£)</label>
@@ -628,7 +706,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
               <select
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={form.preferred_car_type}
-                onChange={e => setForm(f => ({ ...f, preferred_car_type: e.target.value as CarType }))}
+                onChange={e => setForm(f => ({ ...f, preferred_car_type: e.target.value as CarType, preferred_car_model: '' }))}
               >
                 <option value="">Any</option>
                 {CAR_TYPES.map(t => <option key={t} value={t}>{carTypeLabel(t)}</option>)}
@@ -636,17 +714,29 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             </div>
           </div>
 
-          {/* Specific car model */}
+          {/* Car Model — dropdown based on selected category */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
-              Preferred Car Model <span className="text-gray-400">(optional, e.g. Mercedes S Class, BMW 7 Series)</span>
+              Preferred Car Model
+              {!form.preferred_car_type && <span className="text-gray-400 ml-1">(select a category first)</span>}
             </label>
-            <input
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.preferred_car_model}
-              onChange={e => setForm(f => ({ ...f, preferred_car_model: e.target.value }))}
-              placeholder="e.g. Mercedes S Class W223, V Class..."
-            />
+            {modelOptions.length > 0 ? (
+              <select
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={form.preferred_car_model}
+                onChange={e => setForm(f => ({ ...f, preferred_car_model: e.target.value }))}
+              >
+                <option value="">Any model</option>
+                {modelOptions.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            ) : (
+              <input
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-400 cursor-not-allowed"
+                value={form.preferred_car_model}
+                disabled
+                placeholder="Select a car category above"
+              />
+            )}
           </div>
 
           {/* Visibility */}
@@ -654,8 +744,8 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             <label className="block text-xs font-medium text-gray-700 mb-2">Who can see this job?</label>
             <div className="grid grid-cols-3 gap-2">
               {([
-                { key: 'company',  icon: Building2, label: 'Company Only',   desc: 'Your drivers' },
-                { key: 'platform', icon: Globe,     label: 'All Drivers',    desc: 'Incl. freelancers' },
+                { key: 'company',  icon: Building2, label: 'Company Only',    desc: 'Your drivers' },
+                { key: 'platform', icon: Globe,     label: 'All Drivers',     desc: 'Incl. freelancers' },
                 { key: 'direct',   icon: User2,     label: 'Specific Driver', desc: 'Pick by name' },
               ] as const).map(({ key, icon: Icon, label, desc }) => (
                 <button
@@ -729,29 +819,28 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
 
           {/* Open for applications toggle */}
           {form.visibility !== 'direct' && (
-          <div className="flex items-center justify-between py-3 px-4 bg-blue-50 rounded-lg border border-blue-100">
-            <div>
-              <p className="text-sm font-medium text-blue-900">Open for Driver Applications</p>
-              <p className="text-xs text-blue-600 mt-0.5">Drivers with matching vehicles can apply for this job</p>
+            <div className="flex items-center justify-between py-3 px-4 bg-blue-50 rounded-lg border border-blue-100">
+              <div>
+                <p className="text-sm font-medium text-blue-900">Open for Driver Applications</p>
+                <p className="text-xs text-blue-600 mt-0.5">Drivers with matching vehicles can apply for this job</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({
+                  ...f,
+                  open_for_applications: !f.open_for_applications,
+                  driver_id: f.open_for_applications ? f.driver_id : '',
+                }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.open_for_applications ? 'bg-blue-600' : 'bg-gray-200'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                  form.open_for_applications ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setForm(f => ({
-                ...f,
-                open_for_applications: !f.open_for_applications,
-                driver_id: f.open_for_applications ? f.driver_id : '',
-              }))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                form.open_for_applications ? 'bg-blue-600' : 'bg-gray-200'
-              }`}
-            >
-              <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
-                form.open_for_applications ? 'translate-x-6' : 'translate-x-1'
-              }`} />
-            </button>
-          </div>
-
-          )} {/* end visibility !== direct */}
+          )}
 
           {/* Assign driver */}
           {form.visibility !== 'direct' && !form.open_for_applications && (
@@ -794,7 +883,11 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             </button>
             <button
               onClick={handleCreate}
-              disabled={saving || form.route_legs.filter(s => s.trim()).length < 2 || (form.visibility === 'direct' && form.target_drivers.length === 0)}
+              disabled={
+                saving ||
+                (isDaily ? form.route_legs.filter(s => s.trim()).length < 1 : form.route_legs.filter(s => s.trim()).length < 2) ||
+                (form.visibility === 'direct' && form.target_drivers.length === 0)
+              }
               className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium"
             >
               {saving ? 'Creating...' : 'Create Job'}

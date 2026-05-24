@@ -4,8 +4,20 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { MapPin, Clock, Car, Star, Search, Plus, Globe, Users, User2, X, Lock } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
+import { LocationAutocomplete } from '@/components/ui/LocationAutocomplete'
 import { formatDate, formatCurrency, carTypeLabel } from '@/lib/utils'
 import type { CarType } from '@/types'
+
+// Common models per car category
+const CAR_MODELS_BY_TYPE: Partial<Record<CarType, string[]>> = {
+  saloon: ['Mercedes-Benz C-Class', 'Mercedes-Benz E-Class', 'BMW 3 Series', 'BMW 5 Series', 'Audi A4', 'Audi A6', 'Jaguar XE', 'Jaguar XF', 'Tesla Model 3', 'Lexus ES', 'Volvo S90'],
+  executive: ['Mercedes-Benz S-Class', 'Mercedes-Benz Maybach S-Class', 'BMW 7 Series', 'Audi A8', 'Bentley Flying Spur', 'Rolls-Royce Ghost', 'Rolls-Royce Phantom', 'Jaguar XJ', 'Lexus LS', 'Tesla Model S'],
+  suv: ['Range Rover Vogue', 'Range Rover Sport', 'Range Rover Autobiography', 'Mercedes-Benz GLE', 'Mercedes-Benz GLS', 'BMW X5', 'BMW X7', 'Audi Q7', 'Audi Q8', 'Porsche Cayenne', 'Volvo XC90', 'Tesla Model X', 'Bentley Bentayga', 'Rolls-Royce Cullinan'],
+  estate: ['Mercedes-Benz E-Class Estate', 'BMW 5 Series Touring', 'Audi A6 Avant', 'Volvo V90', 'Jaguar XF Sportbrake'],
+  mpv: ['Mercedes-Benz V-Class', 'Volkswagen Caravelle', 'Ford Galaxy', 'SEAT Alhambra'],
+  minibus: ['Mercedes-Benz Sprinter Minibus', 'Ford Transit Minibus', 'Volkswagen Crafter Minibus', 'Iveco Daily Minibus', 'Ford Tourneo Custom'],
+  van: ['Mercedes-Benz Vito', 'Mercedes-Benz Sprinter', 'Ford Transit', 'Volkswagen Transporter', 'Renault Trafic'],
+}
 
 interface DriverSearchResult {
   id: string
@@ -327,15 +339,19 @@ export function AvailableJobsClient({ jobs: initial, appliedJobIds: initialAppli
 
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Pickup Address *</label>
-            <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={postForm.pickup_address} onChange={e => setPostForm(f => ({ ...f, pickup_address: e.target.value }))}
-              placeholder="e.g. Heathrow Airport, Terminal 2" />
+            <LocationAutocomplete
+              value={postForm.pickup_address}
+              onChange={v => setPostForm(f => ({ ...f, pickup_address: v }))}
+              placeholder="e.g. Heathrow Airport, Terminal 2"
+            />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Drop-off Address *</label>
-            <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={postForm.dropoff_address} onChange={e => setPostForm(f => ({ ...f, dropoff_address: e.target.value }))}
-              placeholder="e.g. 10 Canary Wharf, London" />
+            <LocationAutocomplete
+              value={postForm.dropoff_address}
+              onChange={v => setPostForm(f => ({ ...f, dropoff_address: v }))}
+              placeholder="e.g. 10 Canary Wharf, London"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -357,27 +373,33 @@ export function AvailableJobsClient({ jobs: initial, appliedJobIds: initialAppli
               value={postForm.price} onChange={e => setPostForm(f => ({ ...f, price: e.target.value }))} placeholder="0.00" />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Car Type Required</label>
-            <select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={postForm.preferred_car_type} onChange={e => setPostForm(f => ({ ...f, preferred_car_type: e.target.value as CarType }))}>
-              <option value="">Any</option>
-              {CAR_TYPES.map(t => <option key={t} value={t}>{carTypeLabel(t)}</option>)}
-            </select>
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Required Make (optional)</label>
-              <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={postForm.required_car_make} onChange={e => setPostForm(f => ({ ...f, required_car_make: e.target.value }))}
-                placeholder="e.g. Mercedes" />
+              <label className="block text-xs font-medium text-gray-700 mb-1">Car Category</label>
+              <select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={postForm.preferred_car_type}
+                onChange={e => setPostForm(f => ({ ...f, preferred_car_type: e.target.value as CarType, required_car_model: '' }))}>
+                <option value="">Any</option>
+                {CAR_TYPES.map(t => <option key={t} value={t}>{carTypeLabel(t)}</option>)}
+              </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Required Model (optional)</label>
-              <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={postForm.required_car_model} onChange={e => setPostForm(f => ({ ...f, required_car_model: e.target.value }))}
-                placeholder="e.g. S Class" />
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Car Model {!postForm.preferred_car_type && <span className="text-gray-400">(pick category first)</span>}
+              </label>
+              {postForm.preferred_car_type && (CAR_MODELS_BY_TYPE[postForm.preferred_car_type as CarType] ?? []).length > 0 ? (
+                <select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={postForm.required_car_model}
+                  onChange={e => setPostForm(f => ({ ...f, required_car_model: e.target.value }))}>
+                  <option value="">Any model</option>
+                  {(CAR_MODELS_BY_TYPE[postForm.preferred_car_type as CarType] ?? []).map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              ) : (
+                <input disabled className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-400 cursor-not-allowed"
+                  placeholder="Select category first" />
+              )}
             </div>
           </div>
 
