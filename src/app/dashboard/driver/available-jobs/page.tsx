@@ -12,14 +12,13 @@ export default async function AvailableJobsPage() {
     .eq('id', user.id)
     .single()
 
-  // drivers.id = auth.uid() — no separate user_id column
   const { data: driver } = await supabase
     .from('drivers')
     .select('id, car_type')
     .eq('id', user.id)
     .maybeSingle()
 
-  // Company vehicles available for this driver to use when applying
+  // Company vehicles available for this driver
   const { data: companyVehicles } = await supabase
     .from('vehicles')
     .select('id, car_type, make, model, registration')
@@ -27,20 +26,30 @@ export default async function AvailableJobsPage() {
     .eq('status', 'available')
     .order('make')
 
-  // Get all unassigned pending jobs for this company
-  const { data: allOpenJobs } = await supabase
-    .from('jobs')
-    .select('*')
-    .eq('company_id', profile?.company_id ?? '')
-    .in('status', ['pending'])
-    .is('driver_id', null)
-    .order('job_date', { ascending: true })
+  // Fetch jobs in parallel:
+  // A) Own company jobs (company / direct / platform visibility)
+  // B) Platform jobs from ALL other companies (visibility = 'platform')
+  const [{ data: ownCompanyJobs }, { data: platformJobs }] = await Promise.all([
+    supabase
+      .from('jobs')
+      .select('*')
+      .eq('company_id', profile?.company_id ?? '')
+      .eq('status', 'pending')
+      .is('driver_id', null)
+      .order('job_date', { ascending: true }),
 
-  // Visibility filter:
-  //   'company'  → show only if open_for_applications = true
-  //   'platform' → always visible (broadcast to all drivers)
-  //   'direct'   → only if user.id is in target_driver_ids
-  const visibilityFiltered = (allOpenJobs ?? []).filter(j => {
+    supabase
+      .from('jobs')
+      .select('*')
+      .eq('visibility', 'platform')
+      .eq('status', 'pending')
+      .is('driver_id', null)
+      .neq('company_id', profile?.company_id ?? '') // avoid duplicates with own company
+      .order('job_date', { ascending: true }),
+  ])
+
+  // Filter own company jobs by visibility rules
+  const filteredOwnJobs = (ownCompanyJobs ?? []).filter(j => {
     const vis = j.visibility ?? 'company'
     if (vis === 'platform') return true
     if (vis === 'company') return j.open_for_applications === true
@@ -51,13 +60,15 @@ export default async function AvailableJobsPage() {
     return false
   })
 
-  // Further filter to jobs matching driver's car type
+  // Platform jobs from other companies are always visible
+  const allVisibleJobs = [...filteredOwnJobs, ...(platformJobs ?? [])]
+
+  // Filter by car type match (job with no preferred type matches anyone)
   const driverCarType = driver?.car_type
-  const matchingJobs = visibilityFiltered.filter(j =>
+  const matchingJobs = allVisibleJobs.filter(j =>
     !j.preferred_car_type || j.preferred_car_type === driverCarType
   )
 
-  // Driver's existing applications
   const { data: myApplications } = await supabase
     .from('job_applications')
     .select('job_id, status, id')
@@ -66,7 +77,7 @@ export default async function AvailableJobsPage() {
   return (
     <AvailableJobsClient
       jobs={matchingJobs}
-      allOpenJobs={visibilityFiltered}
+      allOpenJobs={allVisibleJobs}
       myVehicles={companyVehicles ?? []}
       myApplications={myApplications ?? []}
       driverId={user.id}
