@@ -12,22 +12,17 @@ export default async function MyVehiclesPage() {
     .eq('id', user.id)
     .single()
 
-  const { data: driver } = await supabase
-    .from('drivers')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
-
+  // Show the company's fleet vehicles (company driver uses company vehicles)
   const { data: vehicles } = await supabase
-    .from('company_driver_vehicles')
+    .from('vehicles')
     .select('*')
-    .eq('driver_id', driver?.id)
+    .eq('company_id', profile?.company_id ?? '')
     .order('created_at', { ascending: false })
 
   return (
     <MyVehiclesClient
       vehicles={vehicles ?? []}
-      driverId={driver?.id ?? ''}
+      driverId={user.id}
       companyId={profile?.company_id ?? ''}
     />
   )
