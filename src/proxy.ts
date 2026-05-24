@@ -8,7 +8,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // Routes that don't require authentication
-const PUBLIC_ROUTES = ['/auth/login', '/auth/signup', '/']
+const PUBLIC_ROUTES = ['/auth/login', '/auth/signup', '/auth/reset-password', '/']
 
 // Role → default dashboard path
 const ROLE_DASHBOARD: Record<string, string> = {
