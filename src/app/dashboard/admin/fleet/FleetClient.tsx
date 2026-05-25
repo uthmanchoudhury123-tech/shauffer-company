@@ -15,6 +15,38 @@ import type { Vehicle, CarType, VehicleStatus } from '@/types'
 const CAR_TYPES: CarType[] = ['saloon', 'estate', 'suv', 'mpv', 'minibus', 'executive', 'van']
 const STATUSES: VehicleStatus[] = ['available', 'on_job', 'off_road']
 
+// Makes → Models map for UK chauffeur industry
+const VEHICLE_MAKES: Record<string, string[]> = {
+  'Mercedes-Benz': ['A-Class', 'C-Class', 'E-Class', 'S-Class', 'Maybach S-Class', 'CLS', 'GLA', 'GLC', 'GLE', 'GLS', 'V-Class', 'Vito', 'Sprinter', 'EQS', 'EQE'],
+  'BMW': ['1 Series', '2 Series', '3 Series', '4 Series', '5 Series', '6 Series', '7 Series', '8 Series', 'X1', 'X2', 'X3', 'X4', 'X5', 'X6', 'X7', 'i4', 'i5', 'i7', 'iX'],
+  'Audi': ['A1', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'Q2', 'Q3', 'Q4 e-tron', 'Q5', 'Q7', 'Q8', 'e-tron GT', 'RS6'],
+  'Jaguar': ['XE', 'XF', 'XJ', 'E-Pace', 'F-Pace', 'I-Pace', 'F-Type'],
+  'Land Rover': ['Defender', 'Discovery', 'Discovery Sport', 'Freelander', 'Range Rover', 'Range Rover Sport', 'Range Rover Velar', 'Range Rover Evoque'],
+  'Rolls-Royce': ['Ghost', 'Ghost Extended', 'Phantom', 'Phantom Extended', 'Wraith', 'Dawn', 'Cullinan'],
+  'Bentley': ['Flying Spur', 'Flying Spur Hybrid', 'Mulsanne', 'Bentayga', 'Bentayga EWB', 'Continental GT', 'Continental GTC'],
+  'Porsche': ['Cayenne', 'Cayenne Coupe', 'Panamera', 'Panamera Sport Turismo', 'Taycan', 'Macan', '911'],
+  'Tesla': ['Model 3', 'Model S', 'Model X', 'Model Y'],
+  'Volvo': ['S60', 'S90', 'V60', 'V90', 'XC40', 'XC60', 'XC90', 'EX30', 'EX90'],
+  'Lexus': ['ES', 'IS', 'LS', 'LC', 'NX', 'RX', 'RZ', 'UX', 'LM'],
+  'Toyota': ['Alphard', 'Land Cruiser', 'Camry', 'Prius', 'Vellfire', 'Hiace', 'Proace'],
+  'Volkswagen': ['Golf', 'Passat', 'Arteon', 'Phaeton', 'Touareg', 'Tiguan', 'Caravelle', 'Transporter', 'Multivan', 'Crafter'],
+  'Ford': ['Focus', 'Mondeo', 'Galaxy', 'S-Max', 'Edge', 'Explorer', 'Transit', 'Transit Custom', 'Tourneo Custom'],
+  'Hyundai': ['i30', 'i40', 'Tucson', 'Santa Fe', 'Ioniq 5', 'Ioniq 6', 'NEXO'],
+  'Kia': ['Ceed', 'Optima', 'Stinger', 'Sportage', 'Sorento', 'EV6', 'EV9', 'Carnival'],
+  'Skoda': ['Octavia', 'Superb', 'Kodiaq', 'Enyaq'],
+  'Maserati': ['Ghibli', 'Quattroporte', 'Levante', 'Grecale', 'GranTurismo'],
+  'Aston Martin': ['DB11', 'DB12', 'DBS', 'Vantage', 'Rapide', 'DBX'],
+  'Peugeot': ['508', 'E-5008', 'Rifter', 'Traveller', 'Boxer', 'Expert'],
+  'Renault': ['Trafic', 'Master', 'Espace', 'Laguna'],
+  'Vauxhall': ['Insignia', 'Astra', 'Vivaro', 'Movano'],
+  'Nissan': ['Qashqai', 'X-Trail', 'Pathfinder', 'NV200', 'Leaf', 'Ariya'],
+  'Honda': ['Civic', 'Accord', 'CR-V', 'Jazz', 'e:Ny1'],
+  'Citroën': ['C5 X', 'Berlingo', 'SpaceTourer', 'Jumpy', 'Relay'],
+  'Other': ['Other / Not Listed'],
+}
+
+const ALL_MAKES = Object.keys(VEHICLE_MAKES).sort()
+
 interface FleetClientProps {
   vehicles: Vehicle[]
   companyId: string
@@ -47,6 +79,9 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
 
+  // Models available for the currently selected make
+  const availableModels = form.make ? (VEHICLE_MAKES[form.make] ?? []) : []
+
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -67,7 +102,6 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
     v.model.toLowerCase().includes(search.toLowerCase())
   )
 
-  // All compliance alerts across all vehicles
   const allAlerts = vehicles.flatMap(v => getComplianceAlerts(v))
 
   function openAdd() {
@@ -99,6 +133,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
   }
 
   async function handleSave() {
+    if (!form.photo_url) { setError('Please upload a photo of the vehicle.'); return }
     setSaving(true)
     setError('')
     const supabase = createClient()
@@ -118,19 +153,12 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
 
     if (editingVehicle) {
       const { data, error: err } = await supabase
-        .from('vehicles')
-        .update(payload)
-        .eq('id', editingVehicle.id)
-        .select()
-        .single()
+        .from('vehicles').update(payload).eq('id', editingVehicle.id).select().single()
       if (err) { setError(err.message); setSaving(false); return }
       setVehicles(prev => prev.map(v => v.id === editingVehicle.id ? data : v))
     } else {
       const { data, error: err } = await supabase
-        .from('vehicles')
-        .insert(payload)
-        .select()
-        .single()
+        .from('vehicles').insert(payload).select().single()
       if (err) { setError(err.message); setSaving(false); return }
       setVehicles(prev => [data, ...prev])
     }
@@ -147,6 +175,8 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
     if (!err) setVehicles(prev => prev.filter(v => v.id !== id))
   }
 
+  const canSave = !!form.make && !!form.model && !!form.registration && !!form.photo_url
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl">
       {/* Header */}
@@ -155,17 +185,13 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
           <h1 className="text-2xl font-bold text-gray-900">Fleet Management</h1>
           <p className="text-sm text-gray-500 mt-0.5">{vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={openAdd}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700
-                     text-white rounded-lg text-sm font-medium transition-colors"
-        >
+        <button onClick={openAdd} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
           <Plus className="w-4 h-4" />
           Add Vehicle
         </button>
       </div>
 
-      {/* Compliance Alerts banner */}
+      {/* Compliance Alerts */}
       {allAlerts.length > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-5 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
@@ -183,9 +209,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
                   }
                 </p>
               ))}
-              {allAlerts.length > 3 && (
-                <p className="text-xs text-orange-600">+{allAlerts.length - 3} more</p>
-              )}
+              {allAlerts.length > 3 && <p className="text-xs text-orange-600">+{allAlerts.length - 3} more</p>}
             </div>
           </div>
         </div>
@@ -199,8 +223,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
           placeholder="Search by registration, make or model..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm
-                     focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
@@ -251,43 +274,26 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
                       <td className="px-4 py-3 font-mono text-gray-700 uppercase">{v.registration}</td>
                       <td className="px-4 py-3 text-gray-600">{carTypeLabel(v.car_type)}</td>
                       <td className="px-4 py-3">
-                        <Badge className={vehicleStatusColor(v.status)}>
-                          {v.status.replace('_', ' ')}
-                        </Badge>
+                        <Badge className={vehicleStatusColor(v.status)}>{v.status.replace('_', ' ')}</Badge>
                       </td>
-                      <td className={`px-4 py-3 text-xs ${
-                        v.mot_date && (new Date(v.mot_date).getTime() - Date.now()) / 86400000 <= 30
-                          ? 'text-red-600 font-medium' : 'text-gray-500'
-                      }`}>
+                      <td className={`px-4 py-3 text-xs ${v.mot_date && (new Date(v.mot_date).getTime() - Date.now()) / 86400000 <= 30 ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
                         {formatDate(v.mot_date)}
                       </td>
-                      <td className={`px-4 py-3 text-xs ${
-                        v.insurance_date && (new Date(v.insurance_date).getTime() - Date.now()) / 86400000 <= 30
-                          ? 'text-red-600 font-medium' : 'text-gray-500'
-                      }`}>
+                      <td className={`px-4 py-3 text-xs ${v.insurance_date && (new Date(v.insurance_date).getTime() - Date.now()) / 86400000 <= 30 ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
                         {formatDate(v.insurance_date)}
                       </td>
                       <td className="px-4 py-3">
-                        {alerts.length > 0 ? (
-                          <Badge className="bg-red-100 text-red-700">
-                            {alerts.length} alert{alerts.length !== 1 ? 's' : ''}
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-green-100 text-green-700">OK</Badge>
-                        )}
+                        {alerts.length > 0
+                          ? <Badge className="bg-red-100 text-red-700">{alerts.length} alert{alerts.length !== 1 ? 's' : ''}</Badge>
+                          : <Badge className="bg-green-100 text-green-700">OK</Badge>
+                        }
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2 justify-end">
-                          <button
-                            onClick={() => openEdit(v)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          >
+                          <button onClick={() => openEdit(v)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            onClick={() => handleDelete(v.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          >
+                          <button onClick={() => handleDelete(v.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -302,64 +308,89 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
       </div>
 
       {/* Add / Edit Modal */}
-      <Modal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editingVehicle ? 'Edit Vehicle' : 'Add Vehicle'}
-        size="lg"
-      >
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingVehicle ? 'Edit Vehicle' : 'Add Vehicle'} size="lg">
         <div className="space-y-4">
-          {/* Vehicle photo */}
+
+          {/* Vehicle photo — MANDATORY */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-2">Vehicle Photo <span className="text-gray-400">(optional)</span></label>
+            <label className="block text-xs font-medium text-gray-700 mb-2">
+              Vehicle Photo <span className="text-red-500">*</span>
+            </label>
             <div className="flex items-center gap-4">
-              <div className="w-28 h-20 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center flex-shrink-0">
+              <div className={`w-28 h-20 rounded-xl overflow-hidden border-2 flex items-center justify-center flex-shrink-0 ${
+                form.photo_url ? 'border-green-300 bg-gray-50' : 'border-dashed border-gray-300 bg-gray-50'
+              }`}>
                 {form.photo_url
                   ? <img src={form.photo_url} alt="Vehicle" className="w-full h-full object-cover" />
                   : <Car className="w-7 h-7 text-gray-300" />
                 }
               </div>
-              <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors text-xs font-medium text-gray-600">
-                <Camera className="w-3.5 h-3.5" />
-                {uploading ? 'Uploading…' : form.photo_url ? 'Change Photo' : 'Upload Photo'}
-                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploading} />
-              </label>
+              <div>
+                <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors text-xs font-medium text-gray-600">
+                  <Camera className="w-3.5 h-3.5" />
+                  {uploading ? 'Uploading…' : form.photo_url ? 'Change Photo' : 'Upload Photo'}
+                  <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploading} />
+                </label>
+                {!form.photo_url && (
+                  <p className="text-xs text-red-500 mt-1.5">A photo is required</p>
+                )}
+              </div>
             </div>
           </div>
 
+          {/* Make & Model dropdowns */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Make *</label>
-              <input
+              <label className="block text-xs font-medium text-gray-700 mb-1">Make <span className="text-red-500">*</span></label>
+              <select
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={form.make} onChange={e => setForm(f => ({ ...f, make: e.target.value }))}
-                placeholder="e.g. Toyota"
-              />
+                value={form.make}
+                onChange={e => setForm(f => ({ ...f, make: e.target.value, model: '' }))}
+              >
+                <option value="">Select make…</option>
+                {ALL_MAKES.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Model *</label>
-              <input
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
-                placeholder="e.g. Prius"
-              />
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Model <span className="text-red-500">*</span>
+                {!form.make && <span className="text-gray-400 ml-1">(select make first)</span>}
+              </label>
+              {availableModels.length > 0 ? (
+                <select
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={form.model}
+                  onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
+                >
+                  <option value="">Select model…</option>
+                  {availableModels.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              ) : (
+                <input
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-400 cursor-not-allowed"
+                  placeholder="Select a make first"
+                />
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Year *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Year <span className="text-red-500">*</span></label>
               <input
                 type="number" min="1990" max={new Date().getFullYear() + 1}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={form.year} onChange={e => setForm(f => ({ ...f, year: Number(e.target.value) }))}
+                value={form.year}
+                onChange={e => setForm(f => ({ ...f, year: Number(e.target.value) }))}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Registration *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Registration <span className="text-red-500">*</span></label>
               <input
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={form.registration} onChange={e => setForm(f => ({ ...f, registration: e.target.value.toUpperCase() }))}
+                value={form.registration}
+                onChange={e => setForm(f => ({ ...f, registration: e.target.value.toUpperCase() }))}
                 placeholder="AB12 CDE"
               />
             </div>
@@ -367,7 +398,8 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
               <label className="block text-xs font-medium text-gray-700 mb-1">Colour</label>
               <input
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={form.colour} onChange={e => setForm(f => ({ ...f, colour: e.target.value }))}
+                value={form.colour}
+                onChange={e => setForm(f => ({ ...f, colour: e.target.value }))}
                 placeholder="e.g. Black"
               />
             </div>
@@ -375,26 +407,27 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Car Type *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Car Type <span className="text-red-500">*</span></label>
               <select
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={form.car_type} onChange={e => setForm(f => ({ ...f, car_type: e.target.value as CarType }))}
+                value={form.car_type}
+                onChange={e => setForm(f => ({ ...f, car_type: e.target.value as CarType }))}
               >
                 {CAR_TYPES.map(t => <option key={t} value={t}>{carTypeLabel(t)}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Status *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Status <span className="text-red-500">*</span></label>
               <select
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as VehicleStatus }))}
+                value={form.status}
+                onChange={e => setForm(f => ({ ...f, status: e.target.value as VehicleStatus }))}
               >
                 {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
               </select>
             </div>
           </div>
 
-          {/* Notes */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Notes <span className="text-gray-400">(optional)</span></label>
             <textarea
@@ -432,23 +465,17 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
           </div>
 
           {error && (
-            <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              {error}
-            </p>
+            <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
           )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <button
-              onClick={() => setModalOpen(false)}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-200 rounded-lg"
-            >
+            <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-200 rounded-lg">
               Cancel
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || !form.make || !form.model || !form.registration}
-              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50
-                         text-white rounded-lg font-medium transition-colors"
+              disabled={saving || uploading || !canSave}
+              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
               {saving ? 'Saving...' : editingVehicle ? 'Update Vehicle' : 'Add Vehicle'}
             </button>
