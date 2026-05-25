@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Car, AlertTriangle, Edit2, Trash2, Search, Camera } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -77,7 +77,9 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
   const [error, setError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Models available for the currently selected make
   const availableModels = form.make ? (VEHICLE_MAKES[form.make] ?? []) : []
@@ -86,14 +88,19 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
+    setUploadError('')
     const supabase = createClient()
     const path = `fleet/${companyId}/${Date.now()}-${file.name}`
-    const { data, error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-    if (!error && data) {
+    const { data, error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+    if (upErr) {
+      setUploadError(`Upload failed: ${upErr.message}`)
+    } else if (data) {
       const { data: url } = supabase.storage.from('avatars').getPublicUrl(path)
       setForm(f => ({ ...f, photo_url: url.publicUrl }))
     }
     setUploading(false)
+    // Reset input so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const filtered = vehicles.filter(v =>
@@ -316,6 +323,15 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
             <label className="block text-xs font-medium text-gray-700 mb-2">
               Vehicle Photo <span className="text-red-500">*</span>
             </label>
+            {/* Hidden file input — triggered via ref to avoid modal click issues */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhotoUpload}
+              disabled={uploading}
+            />
             <div className="flex items-center gap-4">
               <div className={`w-28 h-20 rounded-xl overflow-hidden border-2 flex items-center justify-center flex-shrink-0 ${
                 form.photo_url ? 'border-green-300 bg-gray-50' : 'border-dashed border-gray-300 bg-gray-50'
@@ -325,14 +341,21 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
                   : <Car className="w-7 h-7 text-gray-300" />
                 }
               </div>
-              <div>
-                <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors text-xs font-medium text-gray-600">
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-xs font-medium text-gray-600 disabled:opacity-50"
+                >
                   <Camera className="w-3.5 h-3.5" />
                   {uploading ? 'Uploading…' : form.photo_url ? 'Change Photo' : 'Upload Photo'}
-                  <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploading} />
-                </label>
-                {!form.photo_url && (
-                  <p className="text-xs text-red-500 mt-1.5">A photo is required</p>
+                </button>
+                {!form.photo_url && !uploadError && (
+                  <p className="text-xs text-red-500">A photo is required</p>
+                )}
+                {uploadError && (
+                  <p className="text-xs text-red-500">{uploadError}</p>
                 )}
               </div>
             </div>
