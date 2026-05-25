@@ -18,7 +18,6 @@ export default async function AvailableJobsPage() {
     .eq('id', user.id)
     .maybeSingle()
 
-  // Company vehicles available for this driver
   const { data: companyVehicles } = await supabase
     .from('vehicles')
     .select('id, car_type, make, model, registration')
@@ -26,46 +25,68 @@ export default async function AvailableJobsPage() {
     .eq('status', 'available')
     .order('make')
 
-  // Fetch jobs in parallel:
-  // A) Own company jobs (company / direct / platform visibility)
-  // B) Platform jobs from ALL other companies (visibility = 'platform')
-  const [{ data: ownCompanyJobs }, { data: platformJobs }] = await Promise.all([
+  // Fetch all three job sources in parallel
+  const [
+    { data: ownCompanyJobs },
+    { data: platformJobs },
+    { data: freelancerJobs },
+  ] = await Promise.all([
+    // 1. Own company internal jobs (company-only or direct)
     supabase
       .from('jobs')
       .select('*')
       .eq('company_id', profile?.company_id ?? '')
+      .in('visibility', ['company', 'direct'])
       .eq('status', 'pending')
       .is('driver_id', null)
       .order('job_date', { ascending: true }),
 
+    // 2. Jobs outsourced to all drivers (platform) from any company
     supabase
       .from('jobs')
       .select('*')
       .eq('visibility', 'platform')
       .eq('status', 'pending')
       .is('driver_id', null)
-      .neq('company_id', profile?.company_id ?? '') // avoid duplicates with own company
+      .order('job_date', { ascending: true }),
+
+    // 3. Freelancer marketplace jobs (not posted by this driver)
+    supabase
+      .from('freelancer_jobs')
+      .select(`*, posted_by_driver:drivers!freelancer_jobs_posted_by_fkey(id, full_name, rating)`)
+      .eq('status', 'open')
+      .neq('posted_by', user.id)
       .order('job_date', { ascending: true }),
   ])
 
   // Filter own company jobs by visibility rules
   const filteredOwnJobs = (ownCompanyJobs ?? []).filter(j => {
-    const vis = j.visibility ?? 'company'
-    if (vis === 'platform') return true
-    if (vis === 'company') return j.open_for_applications === true
-    if (vis === 'direct') {
+    if (j.visibility === 'company') return j.open_for_applications === true
+    if (j.visibility === 'direct') {
       const ids: string[] = Array.isArray(j.target_driver_ids) ? j.target_driver_ids : []
       return ids.includes(user.id)
     }
     return false
-  })
+  }).map((j: any) => ({ ...j, _jobType: 'company' as const }))
 
-  // Platform jobs from other companies are always visible
-  const allVisibleJobs = [...filteredOwnJobs, ...(platformJobs ?? [])]
+  // Filter freelancer marketplace jobs by visibility
+  const filteredFreelancerJobs = (freelancerJobs ?? []).filter((j: any) => {
+    if (!j.visibility || j.visibility === 'all') return true
+    if (j.visibility === 'direct') {
+      const ids: string[] = Array.isArray(j.target_driver_ids) ? j.target_driver_ids : []
+      return ids.includes(user.id)
+    }
+    return true
+  }).map((j: any) => ({ ...j, _jobType: 'freelancer' as const }))
 
-  // Filter by car type match (job with no preferred type matches anyone)
+  const platformMapped = (platformJobs ?? []).map((j: any) => ({ ...j, _jobType: 'company' as const }))
+
+  // Combine all job sources
+  const allJobs = [...filteredOwnJobs, ...platformMapped, ...filteredFreelancerJobs]
+
+  // Filter by car type
   const driverCarType = driver?.car_type
-  const matchingJobs = allVisibleJobs.filter(j =>
+  const matchingJobs = allJobs.filter(j =>
     !j.preferred_car_type || j.preferred_car_type === driverCarType
   )
 
@@ -77,7 +98,7 @@ export default async function AvailableJobsPage() {
   return (
     <AvailableJobsClient
       jobs={matchingJobs}
-      allOpenJobs={allVisibleJobs}
+      allOpenJobs={allJobs}
       myVehicles={companyVehicles ?? []}
       myApplications={myApplications ?? []}
       driverId={user.id}

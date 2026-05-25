@@ -748,7 +748,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             <div className="grid grid-cols-3 gap-2">
               {([
                 { key: 'company',  icon: Building2, label: 'Company Only',    desc: 'Your drivers' },
-                { key: 'platform', icon: Globe,     label: 'All Drivers',     desc: 'Incl. freelancers' },
+                { key: 'platform', icon: Globe,     label: 'All Drivers',     desc: 'Freelancers too' },
                 { key: 'direct',   icon: User2,     label: 'Specific Driver', desc: 'Pick by name' },
               ] as const).map(({ key, icon: Icon, label, desc }) => (
                 <button
