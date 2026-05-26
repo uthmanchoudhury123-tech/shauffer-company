@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { MessagesPage } from '@/components/ui/MessagesPage'
 
-export default async function FreelancerChatPage() {
+export default async function AdminMessagesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
@@ -16,7 +16,7 @@ export default async function FreelancerChatPage() {
   return (
     <MessagesPage
       currentUserId={user.id}
-      currentUserName={profile?.full_name ?? 'Freelancer'}
+      currentUserName={profile?.full_name ?? 'Admin'}
     />
   )
 }

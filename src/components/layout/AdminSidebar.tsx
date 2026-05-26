@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import {
   LayoutDashboard,
   Car,
@@ -20,24 +21,26 @@ import {
   CreditCard,
   Settings,
   Building2,
+  MessageSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV_ITEMS = [
-  { href: '/dashboard/admin',              label: 'Overview',       icon: LayoutDashboard },
-  { href: '/dashboard/admin/fleet',        label: 'Fleet',          icon: Car },
-  { href: '/dashboard/admin/drivers',      label: 'Drivers',        icon: Users },
-  { href: '/dashboard/admin/jobs',         label: 'Jobs',           icon: Briefcase },
-  { href: '/dashboard/admin/dispatch',     label: 'Dispatch',       icon: Radio },
-  { href: '/dashboard/admin/map',          label: 'Map View',       icon: Map },
-  { href: '/dashboard/admin/performance',  label: 'Performance',    icon: TrendingUp },
-  { href: '/dashboard/admin/calendar',     label: 'Calendar',       icon: CalendarDays },
-  { href: '/dashboard/admin/analytics',    label: 'Analytics',      icon: BarChart2 },
-  { href: '/dashboard/admin/spreadsheet',  label: 'Spreadsheet',    icon: TableProperties },
+  { href: '/dashboard/admin',              label: 'Overview',        icon: LayoutDashboard },
+  { href: '/dashboard/admin/fleet',        label: 'Fleet',           icon: Car },
+  { href: '/dashboard/admin/drivers',      label: 'Drivers',         icon: Users },
+  { href: '/dashboard/admin/jobs',         label: 'Jobs',            icon: Briefcase },
+  { href: '/dashboard/admin/messages',     label: 'Messages',        icon: MessageSquare },
+  { href: '/dashboard/admin/dispatch',     label: 'Dispatch',        icon: Radio },
+  { href: '/dashboard/admin/map',          label: 'Map View',        icon: Map },
+  { href: '/dashboard/admin/performance',  label: 'Performance',     icon: TrendingUp },
+  { href: '/dashboard/admin/calendar',     label: 'Calendar',        icon: CalendarDays },
+  { href: '/dashboard/admin/analytics',    label: 'Analytics',       icon: BarChart2 },
+  { href: '/dashboard/admin/spreadsheet',  label: 'Spreadsheet',     icon: TableProperties },
   { href: '/dashboard/admin/outsourced',   label: 'Outsourced Jobs', icon: ExternalLink },
   { href: '/dashboard/admin/billing',      label: 'Billing',         icon: CreditCard },
-  { href: '/dashboard/admin/settings',    label: 'Settings',        icon: Settings },
+  { href: '/dashboard/admin/settings',     label: 'Settings',        icon: Settings },
 ]
 
 interface AdminSidebarProps {
@@ -50,6 +53,27 @@ interface AdminSidebarProps {
 export function AdminSidebar({ onClose, companyName, companyLogo, adminName }: AdminSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const [unread, setUnread] = useState(0)
+
+  useEffect(() => {
+    const supabase = createClient()
+    async function fetchUnread() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('recipient_id', user.id)
+        .eq('read', false)
+      setUnread(count ?? 0)
+    }
+    fetchUnread()
+    const channel = supabase
+      .channel('admin-sidebar-unread')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, fetchUnread)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -112,7 +136,13 @@ export function AdminSidebar({ onClose, companyName, companyLogo, adminName }: A
             >
               <item.icon className="w-4 h-4 flex-shrink-0" />
               {item.label}
-              {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto" />}
+              {item.href === '/dashboard/admin/messages' && unread > 0 ? (
+                <span className="ml-auto flex-shrink-0 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              ) : isActive ? (
+                <ChevronRight className="w-3.5 h-3.5 ml-auto" />
+              ) : null}
             </Link>
           )
         })}

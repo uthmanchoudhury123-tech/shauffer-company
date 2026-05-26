@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import {
   Search, Briefcase, Wallet, CalendarDays, Bell,
   History, FileText, MessageSquare, Car, HelpCircle,
@@ -35,6 +36,27 @@ interface FreelancerSidebarProps {
 export function FreelancerSidebar({ driverName, photoUrl, email, balance = 0, onClose }: FreelancerSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const [unread, setUnread] = useState(0)
+
+  useEffect(() => {
+    const supabase = createClient()
+    async function fetchUnread() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('recipient_id', user.id)
+        .eq('read', false)
+      setUnread(count ?? 0)
+    }
+    fetchUnread()
+    const channel = supabase
+      .channel('freelancer-sidebar-unread')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, fetchUnread)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -91,6 +113,11 @@ export function FreelancerSidebar({ driverName, photoUrl, email, balance = 0, on
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
               {label}
+              {href === '/dashboard/freelancer/chat' && unread > 0 && (
+                <span className="ml-auto flex-shrink-0 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
             </Link>
           )
         })}

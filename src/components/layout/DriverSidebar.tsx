@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, LogOut, X, Car, Briefcase, FileText, User, PoundSterling } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { LayoutDashboard, LogOut, X, Car, Briefcase, FileText, User, PoundSterling, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
@@ -11,6 +12,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/driver/available-jobs', label: 'Available Jobs', icon: Briefcase },
   { href: '/dashboard/driver/earnings',       label: 'Earnings',       icon: PoundSterling },
   { href: '/dashboard/driver/my-vehicles',    label: 'My Vehicles',    icon: Car },
+  { href: '/dashboard/driver/messages',       label: 'Messages',       icon: MessageSquare },
   { href: '/dashboard/driver/sign',           label: 'Meet & Greet',   icon: FileText },
   { href: '/dashboard/driver/profile',        label: 'My Profile',     icon: User },
 ]
@@ -24,6 +26,27 @@ interface DriverSidebarProps {
 export function DriverSidebar({ driverName, photoUrl, onClose }: DriverSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const [unread, setUnread] = useState(0)
+
+  useEffect(() => {
+    const supabase = createClient()
+    async function fetchUnread() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('recipient_id', user.id)
+        .eq('read', false)
+      setUnread(count ?? 0)
+    }
+    fetchUnread()
+    const channel = supabase
+      .channel('driver-sidebar-unread')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, fetchUnread)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -73,6 +96,11 @@ export function DriverSidebar({ driverName, photoUrl, onClose }: DriverSidebarPr
             >
               <item.icon className="w-4 h-4 flex-shrink-0" />
               {item.label}
+              {item.href === '/dashboard/driver/messages' && unread > 0 && (
+                <span className="ml-auto flex-shrink-0 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
             </Link>
           )
         })}
