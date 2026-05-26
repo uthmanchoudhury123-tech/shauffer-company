@@ -98,6 +98,7 @@ export function AvailableJobsClient({
         .insert({
           job_id: job.id,
           driver_id: driverId,
+          applicant_id: driverId,
           company_id: companyId || null,
           status: 'pending',
           message: message || null,
