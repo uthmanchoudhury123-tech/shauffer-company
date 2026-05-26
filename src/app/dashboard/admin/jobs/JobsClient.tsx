@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation'
 import {
   Plus, Briefcase, Search, MapPin, Clock, UserCheck,
   ArrowRight, ChevronDown, ChevronUp, X, Repeat,
-  Building2, Globe, User2,
+  Building2, Globe, User2, MessageSquare,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { LocationAutocomplete } from '@/components/ui/LocationAutocomplete'
+import { ChatModal } from '@/components/ui/ChatModal'
 import { jobStatusColor, carTypeLabel, formatDate, formatCurrency } from '@/lib/utils'
 import type { Job, JobStatus, CarType } from '@/types'
 
@@ -159,9 +160,17 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
   const [applicationsJob, setApplicationsJob] = useState<Job | null>(null)
   const [jobApplications, setJobApplications] = useState<{
     id: string; driver_id: string; status: string; message: string | null;
-    vehicle_id: string | null; created_at: string; driver_name?: string
+    vehicle_id: string | null; created_at: string; driver_name?: string;
+    counter_price: number | null; counter_note: string | null;
   }[]>([])
   const [loadingApps, setLoadingApps] = useState(false)
+
+  // Chat state
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatJobId, setChatJobId] = useState<string | undefined>()
+  const [chatJobTitle, setChatJobTitle] = useState('')
+  const [chatDriverId, setChatDriverId] = useState('')
+  const [chatDriverName, setChatDriverName] = useState('')
 
   const filtered = jobs.filter(j => {
     const matchSearch =
@@ -975,18 +984,42 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                   'border-gray-200 bg-white'
                 }`}>
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-800 text-sm">{app.driver_name ?? 'Unknown Driver'}</p>
                       {app.message && <p className="text-xs text-gray-500 mt-0.5 italic">"{app.message}"</p>}
+
+                      {/* Counter offer */}
+                      {app.counter_price && (
+                        <div className="mt-2 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                          <span className="text-xs text-amber-700 font-semibold">Counter offer: {formatCurrency(app.counter_price)}</span>
+                          {app.counter_note && <span className="text-xs text-amber-600">— {app.counter_note}</span>}
+                        </div>
+                      )}
+
                       <p className="text-xs text-gray-400 mt-1">{new Date(app.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      {/* Chat button */}
+                      <button
+                        onClick={() => {
+                          setChatDriverId(app.driver_id)
+                          setChatDriverName(app.driver_name ?? 'Driver')
+                          setChatJobId(applicationsJob!.id)
+                          setChatJobTitle(`${applicationsJob!.pickup_address.split(',')[0]} → ${applicationsJob!.dropoff_address.split(',')[0]}`)
+                          setChatOpen(true)
+                        }}
+                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        Chat
+                      </button>
+
                       {app.status === 'pending' && (
                         <button
                           onClick={() => acceptApplication(app.id, app.driver_id, applicationsJob!.id)}
                           className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700"
                         >
-                          Accept
+                          {app.counter_price ? `Accept ${formatCurrency(app.counter_price)}` : 'Accept'}
                         </button>
                       )}
                       {app.status === 'accepted' && (
@@ -1003,6 +1036,18 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
           )}
         </div>
       </Modal>
+
+      {/* Chat modal */}
+      <ChatModal
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
+        jobId={chatJobId}
+        jobTitle={chatJobTitle}
+        currentUserId={createdBy}
+        currentUserName="Admin"
+        recipientId={chatDriverId}
+        recipientName={chatDriverName}
+      />
     </div>
   )
 }

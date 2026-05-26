@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { MapPin, Clock, Car, Send, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Star, Globe, Building2 } from 'lucide-react'
+import { MapPin, Clock, Car, Send, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Star, Globe, Building2, MessageSquare } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { carTypeLabel, formatDate, formatCurrency } from '@/lib/utils'
+import { ChatModal } from '@/components/ui/ChatModal'
 
 interface Job {
   id: string
@@ -59,6 +60,14 @@ export function AvailableJobsClient({
   const [applying, setApplying] = useState<string | null>(null)
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
+  const [counterPrice, setCounterPrice] = useState('')
+  const [counterNote, setCounterNote] = useState('')
+
+  // Chat state
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatJob, setChatJob] = useState<Job | null>(null)
+  const [chatRecipientId, setChatRecipientId] = useState('')
+  const [chatRecipientName, setChatRecipientName] = useState('')
 
   function getApplication(jobId: string) {
     return applications.find(a => a.job_id === jobId)
@@ -74,21 +83,15 @@ export function AvailableJobsClient({
     setError('')
 
     if (job._jobType === 'freelancer') {
-      // Freelancer marketplace apply
       const res = await fetch('/api/freelancer/jobs/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobId: job.id, message: message || null }),
       })
       const json = await res.json()
-      if (!res.ok) {
-        setError(json.error ?? 'Failed to apply')
-        setApplying(null)
-        return
-      }
+      if (!res.ok) { setError(json.error ?? 'Failed to apply'); setApplying(null); return }
       setApplications(prev => [...prev, { job_id: job.id, status: 'pending', id: json.id ?? job.id }])
     } else {
-      // Company job apply via job_applications table
       const supabase = createClient()
       const { data, error: err } = await supabase
         .from('job_applications')
@@ -99,21 +102,21 @@ export function AvailableJobsClient({
           status: 'pending',
           message: message || null,
           vehicle_id: selectedVehicle || null,
+          counter_price: counterPrice ? Number(counterPrice) : null,
+          counter_note: counterNote || null,
         })
         .select('job_id, status, id')
         .single()
 
-      if (err) {
-        setError(err.message)
-        setApplying(null)
-        return
-      }
+      if (err) { setError(err.message); setApplying(null); return }
       if (data) setApplications(prev => [...prev, data])
     }
 
     setExpanded(null)
     setMessage('')
     setSelectedVehicle('')
+    setCounterPrice('')
+    setCounterNote('')
     setSuccess('Application submitted!')
     setTimeout(() => setSuccess(''), 3000)
     setApplying(null)
@@ -213,32 +216,51 @@ export function AvailableJobsClient({
           )}
 
           {/* Action */}
-          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
-            {app ? (
-              <div className="flex items-center justify-between w-full">
-                <span className={`flex items-center gap-1.5 text-sm font-medium ${
-                  app.status === 'accepted' ? 'text-green-600' :
-                  app.status === 'rejected' ? 'text-red-500' : 'text-blue-600'
-                }`}>
-                  <CheckCircle2 className="w-4 h-4" />
-                  {app.status === 'accepted' ? 'Application Accepted!' :
-                   app.status === 'rejected' ? 'Application Rejected' :
-                   'Application Pending'}
-                </span>
-                {app.status === 'pending' && (
-                  <button onClick={() => withdrawApplication(job.id)} className="text-xs text-gray-400 hover:text-red-500">
-                    Withdraw
-                  </button>
-                )}
-              </div>
-            ) : (
+          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-1">
+              {app ? (
+                <div className="flex items-center justify-between w-full">
+                  <span className={`flex items-center gap-1.5 text-sm font-medium ${
+                    app.status === 'accepted' ? 'text-green-600' :
+                    app.status === 'rejected' ? 'text-red-500' : 'text-blue-600'
+                  }`}>
+                    <CheckCircle2 className="w-4 h-4" />
+                    {app.status === 'accepted' ? 'Accepted!' :
+                     app.status === 'rejected' ? 'Rejected' :
+                     'Pending'}
+                  </span>
+                  {app.status === 'pending' && (
+                    <button onClick={() => withdrawApplication(job.id)} className="text-xs text-gray-400 hover:text-red-500">
+                      Withdraw
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setExpanded(isExpanded ? null : job.id); setError('') }}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Apply
+                  {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+              )}
+            </div>
+            {/* Chat button — show for freelancer jobs with a poster, or company jobs */}
+            {(isFreelancer ? job.posted_by_driver : true) && (
               <button
-                onClick={() => { setExpanded(isExpanded ? null : job.id); setError('') }}
-                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                onClick={() => {
+                  const rId = isFreelancer ? job.posted_by_driver!.id : companyId
+                  const rName = isFreelancer ? job.posted_by_driver!.full_name : 'Company Admin'
+                  setChatRecipientId(rId)
+                  setChatRecipientName(rName)
+                  setChatJob(job)
+                  setChatOpen(true)
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-300 text-sm rounded-lg transition-colors flex-shrink-0"
               >
-                <Send className="w-3.5 h-3.5" />
-                Apply
-                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                <MessageSquare className="w-3.5 h-3.5" />
+                Chat
               </button>
             )}
           </div>
@@ -264,6 +286,35 @@ export function AvailableJobsClient({
                       <span className="text-gray-400 ml-auto">{v.registration}</span>
                     </button>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Counter offer — company jobs only */}
+            {!isFreelancer && (
+              <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-semibold text-amber-800">Counter Offer (optional)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs text-amber-700 mb-1">Your price (£)</label>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={counterPrice}
+                      onChange={e => setCounterPrice(e.target.value)}
+                      placeholder={`Original: ${formatCurrency(job.price)}`}
+                      className="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-amber-700 mb-1">Reason (optional)</label>
+                    <input
+                      type="text"
+                      value={counterNote}
+                      onChange={e => setCounterNote(e.target.value)}
+                      placeholder="e.g. distance, tolls"
+                      className="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -303,6 +354,7 @@ export function AvailableJobsClient({
   }
 
   return (
+    <>
     <div className="p-4 sm:p-6 max-w-3xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Available Jobs</h1>
@@ -361,5 +413,21 @@ export function AvailableJobsClient({
         </div>
       )}
     </div>
+
+      {/* Chat modal */}
+      {chatJob && (
+        <ChatModal
+          isOpen={chatOpen}
+          onClose={() => setChatOpen(false)}
+          jobId={chatJob._jobType === 'company' ? chatJob.id : undefined}
+          freelancerJobId={chatJob._jobType === 'freelancer' ? chatJob.id : undefined}
+          jobTitle={`${chatJob.pickup_address.split(',')[0]} → ${chatJob.dropoff_address?.split(',')[0] ?? ''}`}
+          currentUserId={driverId}
+          currentUserName="Me"
+          recipientId={chatRecipientId}
+          recipientName={chatRecipientName}
+        />
+      )}
+    </>
   )
 }
