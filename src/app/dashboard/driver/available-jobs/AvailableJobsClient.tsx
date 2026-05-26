@@ -50,7 +50,7 @@ export function AvailableJobsClient({
   myVehicles: Vehicle[]
   myApplications: Application[]
   driverId: string
-  companyId: string
+  companyId: string | null
   hasVehicles: boolean
 }) {
   const [applications, setApplications] = useState<Application[]>(myApplications)
@@ -98,7 +98,7 @@ export function AvailableJobsClient({
         .insert({
           job_id: job.id,
           driver_id: driverId,
-          company_id: companyId,
+          company_id: companyId || null,
           status: 'pending',
           message: message || null,
           vehicle_id: selectedVehicle || null,
@@ -250,7 +250,7 @@ export function AvailableJobsClient({
             {(isFreelancer ? job.posted_by_driver : true) && (
               <button
                 onClick={() => {
-                  const rId = isFreelancer ? job.posted_by_driver!.id : companyId
+                  const rId = isFreelancer ? job.posted_by_driver!.id : (companyId ?? '')
                   const rName = isFreelancer ? job.posted_by_driver!.full_name : 'Company Admin'
                   setChatRecipientId(rId)
                   setChatRecipientName(rName)

@@ -102,7 +102,7 @@ export default async function AvailableJobsPage() {
       myVehicles={companyVehicles ?? []}
       myApplications={myApplications ?? []}
       driverId={user.id}
-      companyId={profile?.company_id ?? ''}
+      companyId={profile?.company_id ?? null}
       hasVehicles={(companyVehicles ?? []).length > 0}
     />
   )
