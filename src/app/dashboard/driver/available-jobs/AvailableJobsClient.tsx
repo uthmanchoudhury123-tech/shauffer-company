@@ -96,6 +96,7 @@ export function AvailableJobsClient({
       const { data, error: err } = await supabase
         .from('job_applications')
         .insert({
+          job_id: job.id,
           company_job_id: job.id,
           driver_id: driverId,
           applicant_id: driverId,
