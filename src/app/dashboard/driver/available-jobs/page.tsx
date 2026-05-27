@@ -90,10 +90,16 @@ export default async function AvailableJobsPage() {
     !j.preferred_car_type || j.preferred_car_type === driverCarType
   )
 
-  const { data: myApplications } = await supabase
+  const { data: myApplicationsRaw } = await supabase
     .from('job_applications')
-    .select('job_id, status, id')
+    .select('company_job_id, status, id')
     .eq('driver_id', user.id)
+
+  // Normalise so client can use job_id regardless of column name
+  const myApplications = (myApplicationsRaw ?? []).map((a: any) => ({
+    ...a,
+    job_id: a.company_job_id ?? a.job_id ?? '',
+  }))
 
   return (
     <AvailableJobsClient

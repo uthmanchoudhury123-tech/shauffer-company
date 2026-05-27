@@ -96,7 +96,7 @@ export function AvailableJobsClient({
       const { data, error: err } = await supabase
         .from('job_applications')
         .insert({
-          job_id: job.id,
+          company_job_id: job.id,
           driver_id: driverId,
           applicant_id: driverId,
           company_id: companyId || null,
@@ -106,11 +106,11 @@ export function AvailableJobsClient({
           counter_price: counterPrice ? Number(counterPrice) : null,
           counter_note: counterNote || null,
         })
-        .select('job_id, status, id')
+        .select('company_job_id, status, id')
         .single()
 
       if (err) { setError(err.message); setApplying(null); return }
-      if (data) setApplications(prev => [...prev, data])
+      if (data) setApplications(prev => [...prev, { ...data, job_id: data.company_job_id }])
     }
 
     setExpanded(null)
