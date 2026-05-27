@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { token, userId } = await request.json()
 
-  const { token } = await request.json()
+  if (!token) return NextResponse.json({ error: 'Missing invite token' }, { status: 400 })
 
   const admin = createAdminClient()
 
@@ -24,19 +21,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid or expired invite link' }, { status: 400 })
   }
 
-  // Update the user's profile with the company
+  // Resolve the user id — prefer the passed userId (from signUp response),
+  // fall back to the currently-authenticated user
+  let uid = userId as string | undefined
+  if (!uid) {
+    // Try to get from session (works when email confirmation is off)
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    uid = user?.id
+  }
+
+  if (!uid) {
+    return NextResponse.json({ error: 'Could not identify user — please sign in and try again' }, { status: 401 })
+  }
+
+  const role = invite.role ?? 'company_driver'
+
+  // Update the user's profile with the company + role
   await admin
     .from('user_profiles')
-    .update({ company_id: invite.company_id, role: invite.role })
-    .eq('id', user.id)
+    .update({ company_id: invite.company_id, role })
+    .eq('id', uid)
 
-  // Create the drivers record if it doesn't exist
+  // Create the driver record
   await admin
     .from('drivers')
     .upsert({
-      id: user.id,
+      id: uid,
       company_id: invite.company_id,
-      full_name: user.user_metadata?.full_name ?? '',
+      full_name: '',           // will be filled from user_profiles
       driver_category: 'company',
       availability_status: 'offline',
       car_type: 'saloon',

@@ -46,11 +46,16 @@ export function SignupClient({ inviteToken, inviteEmail }: Props) {
     setError('')
 
     const supabase = createClient()
-    const { error: authError } = await supabase.auth.signUp({
+    const { data: signUpData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: fullName, role },
+        // Embed invite token in metadata so DB trigger can auto-link company
+        data: {
+          full_name: fullName,
+          role,
+          ...(inviteToken ? { invite_token: inviteToken } : {}),
+        },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
@@ -61,12 +66,13 @@ export function SignupClient({ inviteToken, inviteEmail }: Props) {
       return
     }
 
-    // If coming from an invite, use it to link to the company
-    if (inviteToken) {
+    // If coming from an invite, also call use-invite directly using the
+    // user id returned from signUp (works even before email confirmation)
+    if (inviteToken && signUpData.user) {
       const res = await fetch('/api/invite/use', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: inviteToken }),
+        body: JSON.stringify({ token: inviteToken, userId: signUpData.user.id }),
       })
       if (!res.ok) {
         const data = await res.json()
