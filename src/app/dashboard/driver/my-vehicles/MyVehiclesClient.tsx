@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Plus, Car, Trash2, CheckCircle2, PenLine } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { carTypeLabel } from '@/lib/utils'
@@ -38,19 +38,35 @@ export function MyVehiclesClient({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
   const [photoPreview, setPhotoPreview] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
+    setUploadError('')
     const supabase = createClient()
-    const path = `driver-vehicles/${driverId}/${Date.now()}-${file.name}`
-    const { data, error } = await supabase.storage.from('vehicles').upload(path, file, { upsert: true })
-    if (!error && data) {
-      const { data: url } = supabase.storage.from('vehicles').getPublicUrl(path)
-      setForm(f => ({ ...f, photo_url: url.publicUrl }))
-      setPhotoPreview(url.publicUrl)
+
+    // Sanitise filename — remove spaces/special chars
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path = `driver-vehicles/${driverId}/${Date.now()}-${safeName}`
+
+    const { data, error } = await supabase.storage
+      .from('vehicles')
+      .upload(path, file, { upsert: true, contentType: file.type })
+
+    if (error) {
+      setUploadError(`Upload failed: ${error.message}`)
+      setUploading(false)
+      return
+    }
+
+    if (data) {
+      const { data: urlData } = supabase.storage.from('vehicles').getPublicUrl(path)
+      setForm(f => ({ ...f, photo_url: urlData.publicUrl }))
+      setPhotoPreview(urlData.publicUrl)
     }
     setUploading(false)
   }
@@ -135,10 +151,24 @@ export function MyVehiclesClient({
                   <Car className="w-6 h-6 text-gray-400" />
                 </div>
               )}
-              <label className="cursor-pointer px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                {uploading ? 'Uploading...' : 'Upload Photo'}
-                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-              </label>
+              <div className="flex flex-col gap-1">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  {uploading ? 'Uploading...' : photoPreview ? 'Change Photo' : 'Upload Photo'}
+                </button>
+                {uploadError && <p className="text-xs text-red-500">{uploadError}</p>}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoUpload}
+              />
             </div>
           </div>
 
