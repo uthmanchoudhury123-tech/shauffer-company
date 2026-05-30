@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Plus, Briefcase, Search, MapPin, Clock, UserCheck,
   ArrowRight, ChevronDown, ChevronUp, X, Repeat,
-  Building2, Globe, User2, MessageSquare,
+  Building2, Globe, User2, MessageSquare, FileText,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
@@ -543,6 +543,17 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                           >
                             Complete
                           </button>
+                        )}
+                        {job.status === 'completed' && (
+                          <a
+                            href={`/api/jobs/${job.id}/invoice`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-lg transition-colors font-medium"
+                          >
+                            <FileText className="w-3 h-3" />
+                            Invoice
+                          </a>
                         )}
                         {(job.status === 'pending' || job.status === 'assigned') && (
                           <button
