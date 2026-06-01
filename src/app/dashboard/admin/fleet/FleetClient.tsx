@@ -90,12 +90,13 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
     setUploading(true)
     setUploadError('')
     const supabase = createClient()
-    const path = `fleet/${companyId}/${Date.now()}-${file.name}`
-    const { data, error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path = `fleet/${companyId}/${Date.now()}-${safeName}`
+    const { data, error: upErr } = await supabase.storage.from('vehicles').upload(path, file, { upsert: true, contentType: file.type })
     if (upErr) {
       setUploadError(`Upload failed: ${upErr.message}`)
     } else if (data) {
-      const { data: url } = supabase.storage.from('avatars').getPublicUrl(path)
+      const { data: url } = supabase.storage.from('vehicles').getPublicUrl(path)
       setForm(f => ({ ...f, photo_url: url.publicUrl }))
     }
     setUploading(false)
