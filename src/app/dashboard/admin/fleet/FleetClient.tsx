@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Car, AlertTriangle, Edit2, Trash2, Search, Camera } from 'lucide-react'
+import { Plus, Car, AlertTriangle, Edit2, Trash2, Search, Camera, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
@@ -61,12 +61,15 @@ const emptyForm = {
   status: 'available' as VehicleStatus,
   colour: '',
   photo_url: '',
+  photo_urls: [] as string[],
   notes: '',
   mot_date: '',
   service_date: '',
   road_tax_date: '',
   insurance_date: '',
 }
+
+const MAX_PHOTOS = 7
 
 export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) {
   const router = useRouter()
@@ -85,23 +88,41 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
   const availableModels = form.make ? (VEHICLE_MAKES[form.make] ?? []) : []
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
     setUploading(true)
     setUploadError('')
     const supabase = createClient()
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const path = `fleet/${companyId}/${Date.now()}-${safeName}`
-    const { data, error: upErr } = await supabase.storage.from('vehicles').upload(path, file, { upsert: true, contentType: file.type })
-    if (upErr) {
-      setUploadError(`Upload failed: ${upErr.message}`)
-    } else if (data) {
-      const { data: url } = supabase.storage.from('vehicles').getPublicUrl(path)
-      setForm(f => ({ ...f, photo_url: url.publicUrl }))
+
+    const newUrls: string[] = []
+    for (const file of files) {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `fleet/${companyId}/${Date.now()}-${safeName}`
+      const { data, error: upErr } = await supabase.storage
+        .from('vehicles')
+        .upload(path, file, { upsert: true, contentType: file.type })
+      if (upErr) { setUploadError(`Upload failed: ${upErr.message}`); continue }
+      if (data) {
+        const { data: url } = supabase.storage.from('vehicles').getPublicUrl(path)
+        newUrls.push(url.publicUrl)
+      }
+    }
+
+    if (newUrls.length) {
+      setForm(f => {
+        const combined = [...f.photo_urls, ...newUrls].slice(0, MAX_PHOTOS)
+        return { ...f, photo_urls: combined, photo_url: combined[0] }
+      })
     }
     setUploading(false)
-    // Reset input so same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  function removePhoto(index: number) {
+    setForm(f => {
+      const updated = f.photo_urls.filter((_, i) => i !== index)
+      return { ...f, photo_urls: updated, photo_url: updated[0] ?? '' }
+    })
   }
 
   const filtered = vehicles.filter(v =>
@@ -130,6 +151,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
       status: v.status,
       colour: v.colour ?? '',
       photo_url: v.photo_url ?? '',
+      photo_urls: (v as any).photo_urls ?? (v.photo_url ? [v.photo_url] : []),
       notes: v.notes ?? '',
       mot_date: v.mot_date ?? '',
       service_date: v.service_date ?? '',
@@ -141,7 +163,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
   }
 
   async function handleSave() {
-    if (!form.photo_url) { setError('Please upload a photo of the vehicle.'); return }
+    if (!form.photo_urls.length) { setError('Please upload at least one photo of the vehicle.'); return }
     setSaving(true)
     setError('')
     const supabase = createClient()
@@ -155,7 +177,8 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
       road_tax_date: form.road_tax_date || null,
       insurance_date: form.insurance_date || null,
       colour: form.colour || null,
-      photo_url: form.photo_url || null,
+      photo_url: form.photo_urls[0] || null,
+      photo_urls: form.photo_urls.length ? form.photo_urls : null,
       notes: form.notes || null,
     }
 
@@ -183,7 +206,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
     if (!err) setVehicles(prev => prev.filter(v => v.id !== id))
   }
 
-  const canSave = !!form.make && !!form.model && !!form.registration && !!form.photo_url
+  const canSave = !!form.make && !!form.model && !!form.registration && form.photo_urls.length > 0
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl">
@@ -319,47 +342,73 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingVehicle ? 'Edit Vehicle' : 'Add Vehicle'} size="lg">
         <div className="space-y-4">
 
-          {/* Vehicle photo — MANDATORY */}
+          {/* Vehicle photos — 1 required, up to 7 */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-2">
-              Vehicle Photo <span className="text-red-500">*</span>
-            </label>
-            {/* Hidden file input — triggered via ref to avoid modal click issues */}
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-medium text-gray-700">
+                Vehicle Photos <span className="text-red-500">*</span>
+                <span className="text-gray-400 font-normal ml-1">(1 required, up to {MAX_PHOTOS})</span>
+              </label>
+              <span className="text-xs text-gray-400">{form.photo_urls.length}/{MAX_PHOTOS}</span>
+            </div>
+
+            {/* Hidden file input — multiple allowed */}
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
               onChange={handlePhotoUpload}
               disabled={uploading}
             />
-            <div className="flex items-center gap-4">
-              <div className={`w-28 h-20 rounded-xl overflow-hidden border-2 flex items-center justify-center flex-shrink-0 ${
-                form.photo_url ? 'border-green-300 bg-gray-50' : 'border-dashed border-gray-300 bg-gray-50'
-              }`}>
-                {form.photo_url
-                  ? <img src={form.photo_url} alt="Vehicle" className="w-full h-full object-cover" />
-                  : <Car className="w-7 h-7 text-gray-300" />
-                }
-              </div>
-              <div className="space-y-1.5">
+
+            <div className="grid grid-cols-4 gap-2">
+              {/* Existing photos */}
+              {form.photo_urls.map((url, i) => (
+                <div key={url} className="relative group aspect-[4/3] rounded-lg overflow-hidden border border-gray-200">
+                  <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                  {/* Primary badge */}
+                  {i === 0 && (
+                    <span className="absolute top-1 left-1 text-[9px] font-bold bg-blue-600 text-white px-1.5 py-0.5 rounded">
+                      MAIN
+                    </span>
+                  )}
+                  {/* Remove button */}
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+
+              {/* Add photo slot */}
+              {form.photo_urls.length < MAX_PHOTOS && (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-xs font-medium text-gray-600 disabled:opacity-50"
+                  className="aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-colors flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-blue-500 disabled:opacity-50"
                 >
-                  <Camera className="w-3.5 h-3.5" />
-                  {uploading ? 'Uploading…' : form.photo_url ? 'Change Photo' : 'Upload Photo'}
+                  {uploading ? (
+                    <span className="text-[10px]">Uploading…</span>
+                  ) : (
+                    <>
+                      <Camera className="w-5 h-5" />
+                      <span className="text-[10px] font-medium">Add Photo</span>
+                    </>
+                  )}
                 </button>
-                {!form.photo_url && !uploadError && (
-                  <p className="text-xs text-red-500">A photo is required</p>
-                )}
-                {uploadError && (
-                  <p className="text-xs text-red-500">{uploadError}</p>
-                )}
-              </div>
+              )}
             </div>
+
+            {!form.photo_urls.length && !uploadError && (
+              <p className="text-xs text-red-500 mt-1.5">At least one photo is required</p>
+            )}
+            {uploadError && <p className="text-xs text-red-500 mt-1.5">{uploadError}</p>}
           </div>
 
           {/* Make & Model dropdowns */}
