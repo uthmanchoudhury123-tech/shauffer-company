@@ -18,10 +18,10 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient()
 
-  // ─── Checkout completed (wallet top-up OR job payment) ───────────────────────
+  // ─── Checkout completed (wallet top-up OR job payment OR company top-up) ─────
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
-    const { supabase_user_id, action, amount, job_id, driver_id } = session.metadata ?? {}
+    const { supabase_user_id, action, amount, job_id, driver_id, company_id } = session.metadata ?? {}
 
     // Wallet top-up (freelancer)
     if (action === 'wallet_topup' && supabase_user_id && amount) {
@@ -50,6 +50,30 @@ export async function POST(req: Request) {
         body: `£${topupAmount.toFixed(2)} has been added to your wallet.`,
         type: 'payment_received',
         link: '/dashboard/freelancer/wallet',
+      })
+    }
+
+    // Company wallet top-up
+    if (action === 'company_topup' && company_id && amount) {
+      const topupAmount = parseFloat(amount)
+
+      const { data: wallet } = await admin
+        .from('company_wallets')
+        .select('balance')
+        .eq('company_id', company_id)
+        .single()
+
+      const newBalance = (wallet?.balance ?? 0) + topupAmount
+      await admin.from('company_wallets').upsert({
+        company_id,
+        balance: newBalance,
+        updated_at: new Date().toISOString(),
+      })
+      await admin.from('company_wallet_transactions').insert({
+        company_id,
+        amount: topupAmount,
+        type: 'topup',
+        description: `Stripe top-up — £${topupAmount.toFixed(2)} added to wallet`,
       })
     }
 

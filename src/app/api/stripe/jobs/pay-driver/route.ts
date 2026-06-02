@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { stripe } from '@/lib/stripe'
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -12,9 +11,8 @@ export async function POST(req: Request) {
   if (!jobId) return NextResponse.json({ error: 'jobId required' }, { status: 400 })
 
   const admin = createAdminClient()
-  const origin = req.headers.get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? 'https://shauffer-company.vercel.app'
 
-  // Fetch job with driver info
+  // Fetch job
   const { data: job, error: jobErr } = await admin
     .from('jobs')
     .select('id, pickup_address, dropoff_address, price, driver_id, payment_status, company_id')
@@ -24,47 +22,66 @@ export async function POST(req: Request) {
   if (jobErr || !job) return NextResponse.json({ error: 'Job not found' }, { status: 404 })
   if (job.payment_status === 'paid') return NextResponse.json({ error: 'Job already paid' }, { status: 400 })
   if (!job.driver_id) return NextResponse.json({ error: 'No driver assigned to this job' }, { status: 400 })
-  if (job.price <= 0) return NextResponse.json({ error: 'Job has no price set' }, { status: 400 })
+  if (!job.price || job.price <= 0) return NextResponse.json({ error: 'Job has no price set' }, { status: 400 })
 
-  const { data: driver } = await admin
-    .from('drivers')
-    .select('full_name')
-    .eq('id', job.driver_id)
+  // Check company wallet balance
+  const { data: wallet } = await admin
+    .from('company_wallets')
+    .select('balance')
+    .eq('company_id', job.company_id)
     .single()
 
-  const description = `${job.pickup_address} → ${job.dropoff_address}`
+  const currentBalance = wallet?.balance ?? 0
+  if (currentBalance < job.price) {
+    return NextResponse.json({
+      error: `Insufficient wallet balance. You have £${currentBalance.toFixed(2)} but need £${job.price.toFixed(2)}. Please top up your wallet first.`,
+      insufficient: true,
+      balance: currentBalance,
+      required: job.price,
+    }, { status: 400 })
+  }
 
-  // Create Stripe Checkout session
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
-    payment_method_types: ['card'],
-    line_items: [{
-      price_data: {
-        currency: 'gbp',
-        unit_amount: Math.round(job.price * 100),
-        product_data: {
-          name: `Driver Payment — ${driver?.full_name ?? 'Driver'}`,
-          description,
-        },
-      },
-      quantity: 1,
-    }],
-    metadata: {
-      action: 'job_payment',
-      job_id: jobId,
-      driver_id: job.driver_id,
-      amount: String(job.price),
-      company_id: job.company_id ?? '',
-    },
-    success_url: `${origin}/dashboard/admin/jobs?payment=success`,
-    cancel_url:  `${origin}/dashboard/admin/jobs?payment=cancelled`,
+  const newCompanyBalance = currentBalance - job.price
+
+  // Deduct from company wallet
+  await admin.from('company_wallets').update({
+    balance: newCompanyBalance,
+    updated_at: new Date().toISOString(),
+  }).eq('company_id', job.company_id)
+
+  // Record company wallet transaction
+  await admin.from('company_wallet_transactions').insert({
+    company_id: job.company_id,
+    amount: -job.price,
+    type: 'payment',
+    description: `Driver payment: ${job.pickup_address} → ${job.dropoff_address}`,
+    job_id: jobId,
   })
 
-  // Save session id to job so webhook can correlate
-  await admin
-    .from('jobs')
-    .update({ stripe_checkout_session_id: session.id })
-    .eq('id', jobId)
+  // Credit driver wallet
+  const { data: driverWallet } = await admin
+    .from('driver_wallets')
+    .select('balance')
+    .eq('driver_id', job.driver_id)
+    .single()
 
-  return NextResponse.json({ url: session.url })
+  const newDriverBalance = (driverWallet?.balance ?? 0) + job.price
+  await admin.from('driver_wallets').upsert({
+    driver_id: job.driver_id,
+    balance: newDriverBalance,
+    updated_at: new Date().toISOString(),
+  })
+
+  // Driver wallet transaction
+  await admin.from('wallet_transactions').insert({
+    driver_id: job.driver_id,
+    amount: job.price,
+    type: 'payment_received',
+    description: `Job payment: ${job.pickup_address} → ${job.dropoff_address}`,
+  })
+
+  // Mark job as paid
+  await admin.from('jobs').update({ payment_status: 'paid' }).eq('id', jobId)
+
+  return NextResponse.json({ success: true, newBalance: newCompanyBalance })
 }
