@@ -101,6 +101,7 @@ const emptyForm = {
   open_for_applications: false,
   visibility: 'company' as 'company' | 'platform' | 'direct',
   target_drivers: [] as DriverSearchResult[],
+  allow_counter_offer: true,
 }
 
 function getLegs(job: Job): { from: string; to: string }[] {
@@ -298,6 +299,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       open_for_applications: isDirected ? false : (form.driver_id ? false : (form.visibility === 'platform' ? true : form.open_for_applications)),
       visibility: form.visibility,
       target_driver_ids: isDirected ? form.target_drivers.map(d => d.id) : [],
+      allow_counter_offer: form.allow_counter_offer,
     }
 
     const { data, error: err } = await supabase
@@ -969,6 +971,27 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
               >
                 <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
                   form.open_for_applications ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+          )}
+
+          {/* Allow counter offers toggle */}
+          {form.open_for_applications && (
+            <div className="flex items-center justify-between py-3 px-4 bg-amber-50 rounded-lg border border-amber-100">
+              <div>
+                <p className="text-sm font-medium text-amber-900">Allow Counter Offers</p>
+                <p className="text-xs text-amber-600 mt-0.5">Drivers can propose a different price when applying</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, allow_counter_offer: !f.allow_counter_offer }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.allow_counter_offer ? 'bg-amber-500' : 'bg-gray-200'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                  form.allow_counter_offer ? 'translate-x-6' : 'translate-x-1'
                 }`} />
               </button>
             </div>

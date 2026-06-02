@@ -24,6 +24,7 @@ interface Job {
   notes: string | null
   status: string
   visibility?: string
+  allow_counter_offer?: boolean | null
   _jobType: 'company' | 'freelancer'
   posted_by_driver?: { id: string; full_name: string; rating: number } | null
 }
@@ -515,7 +516,7 @@ export function AvailableJobsClient({
                   )}
 
                   {/* Counter offer */}
-                  {!isFreelancer && (
+                  {!isFreelancer && job.allow_counter_offer !== false && (
                     <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-2">
                       <p className="text-xs font-semibold text-amber-800">Counter Offer (optional)</p>
                       <div className="grid grid-cols-2 gap-2">
