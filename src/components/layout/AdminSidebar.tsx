@@ -22,6 +22,7 @@ import {
   Settings,
   Building2,
   MessageSquare,
+  Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/admin/fleet',        label: 'Fleet',           icon: Car },
   { href: '/dashboard/admin/drivers',      label: 'Drivers',         icon: Users },
   { href: '/dashboard/admin/jobs',         label: 'Jobs',            icon: Briefcase },
+  { href: '/dashboard/admin/wallet',       label: 'Payments',        icon: Wallet },
   { href: '/dashboard/admin/messages',     label: 'Messages',        icon: MessageSquare },
   { href: '/dashboard/admin/dispatch',     label: 'Dispatch',        icon: Radio },
   { href: '/dashboard/admin/map',          label: 'Map View',        icon: Map },
