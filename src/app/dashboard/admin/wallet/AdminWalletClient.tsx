@@ -100,15 +100,23 @@ export function AdminWalletClient({ walletBalance: initialBalance, walletTransac
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: amt }),
       })
-      const json = await res.json()
+      let json: { url?: string; error?: string } = {}
+      try {
+        json = await res.json()
+      } catch {
+        const text = await res.text().catch(() => 'Unknown server error')
+        alert(`Server error (${res.status}): ${text.replace(/<[^>]+>/g, '').trim().slice(0, 300)}`)
+        setTopupLoading(false)
+        return
+      }
       if (res.ok && json.url) {
         window.location.href = json.url
       } else {
         alert(json.error ?? 'Failed to start top-up')
         setTopupLoading(false)
       }
-    } catch {
-      alert('Network error')
+    } catch (err: any) {
+      alert(`Request failed: ${err?.message ?? 'Unknown error'}`)
       setTopupLoading(false)
     }
   }
