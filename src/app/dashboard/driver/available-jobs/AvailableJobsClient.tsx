@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MapPin, Clock, Car, Send, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Star, Globe, Building2, MessageSquare } from 'lucide-react'
+import { MapPin, Clock, Car, Send, CheckCircle2, AlertCircle, Star, Globe, Building2, MessageSquare, ArrowRight, X, Info, Calendar, Repeat, PoundSterling } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { carTypeLabel, formatDate, formatCurrency } from '@/lib/utils'
 import { ChatModal } from '@/components/ui/ChatModal'
@@ -10,15 +10,21 @@ interface Job {
   id: string
   job_date: string
   job_time: string
+  end_time?: string | null
   pickup_address: string
   dropoff_address: string
+  route_legs?: string[]
   preferred_car_type: string | null
+  preferred_car_model?: string | null
   price: number
+  price_type?: 'fixed' | 'per_hour' | 'per_day' | null
+  job_type?: 'standard' | 'daily' | null
+  hours_per_day?: number | null
+  number_of_days?: number | null
   notes: string | null
   status: string
   visibility?: string
   _jobType: 'company' | 'freelancer'
-  // freelancer jobs have poster info
   posted_by_driver?: { id: string; full_name: string; rating: number } | null
 }
 
@@ -54,7 +60,6 @@ export function AvailableJobsClient({
   hasVehicles: boolean
 }) {
   const [applications, setApplications] = useState<Application[]>(myApplications)
-  const [expanded, setExpanded] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [selectedVehicle, setSelectedVehicle] = useState('')
   const [applying, setApplying] = useState<string | null>(null)
@@ -62,6 +67,9 @@ export function AvailableJobsClient({
   const [error, setError] = useState('')
   const [counterPrice, setCounterPrice] = useState('')
   const [counterNote, setCounterNote] = useState('')
+
+  // Job detail modal
+  const [detailJob, setDetailJob] = useState<Job | null>(null)
 
   // Chat state
   const [chatOpen, setChatOpen] = useState(false)
@@ -114,7 +122,7 @@ export function AvailableJobsClient({
       if (data) setApplications(prev => [...prev, { ...data, job_id: data.company_job_id }])
     }
 
-    setExpanded(null)
+    
     setMessage('')
     setSelectedVehicle('')
     setCounterPrice('')
@@ -140,14 +148,11 @@ export function AvailableJobsClient({
 
   function JobCard({ job }: { job: Job }) {
     const app = getApplication(job.id)
-    const isExpanded = expanded === job.id
     const matchingVehicles = getMatchingVehicles(job)
     const isFreelancer = job._jobType === 'freelancer'
 
     return (
-      <div className={`bg-white rounded-xl border transition-all ${
-        isExpanded ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200'
-      }`}>
+      <div className="bg-white rounded-xl border border-gray-200 transition-all hover:shadow-sm">
         <div className="p-4">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex-1 min-w-0">
@@ -229,7 +234,7 @@ export function AvailableJobsClient({
                     <CheckCircle2 className="w-4 h-4" />
                     {app.status === 'accepted' ? 'Accepted!' :
                      app.status === 'rejected' ? 'Rejected' :
-                     'Pending'}
+                     'Application Pending'}
                   </span>
                   {app.status === 'pending' && (
                     <button onClick={() => withdrawApplication(job.id)} className="text-xs text-gray-400 hover:text-red-500">
@@ -239,16 +244,15 @@ export function AvailableJobsClient({
                 </div>
               ) : (
                 <button
-                  onClick={() => { setExpanded(isExpanded ? null : job.id); setError('') }}
+                  onClick={() => { setDetailJob(job); setError('') }}
                   className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  Apply
-                  {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  <Info className="w-3.5 h-3.5" />
+                  View & Apply
                 </button>
               )}
             </div>
-            {/* Chat button — show for freelancer jobs with a poster, or company jobs */}
+            {/* Chat button */}
             {(isFreelancer ? job.posted_by_driver : true) && (
               <button
                 onClick={() => {
@@ -267,90 +271,6 @@ export function AvailableJobsClient({
             )}
           </div>
         </div>
-
-        {/* Apply form */}
-        {isExpanded && !app && (
-          <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
-            {!isFreelancer && matchingVehicles.length > 0 && (
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Which vehicle will you use?</label>
-                <div className="grid grid-cols-1 gap-2">
-                  {matchingVehicles.map(v => (
-                    <button
-                      key={v.id}
-                      onClick={() => setSelectedVehicle(v.id)}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-sm text-left transition-colors ${
-                        selectedVehicle === v.id ? 'border-blue-500 bg-blue-50 text-blue-800' : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <Car className="w-4 h-4 flex-shrink-0" />
-                      <span className="font-medium">{v.make} {v.model}</span>
-                      <span className="text-gray-400 ml-auto">{v.registration}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Counter offer — company jobs only */}
-            {!isFreelancer && (
-              <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-2">
-                <p className="text-xs font-semibold text-amber-800">Counter Offer (optional)</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs text-amber-700 mb-1">Your price (£)</label>
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={counterPrice}
-                      onChange={e => setCounterPrice(e.target.value)}
-                      placeholder={`Original: ${formatCurrency(job.price)}`}
-                      className="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-amber-700 mb-1">Reason (optional)</label>
-                    <input
-                      type="text"
-                      value={counterNote}
-                      onChange={e => setCounterNote(e.target.value)}
-                      placeholder="e.g. distance, tolls"
-                      className="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                {isFreelancer ? 'Message to poster (optional)' : 'Message to admin (optional)'}
-              </label>
-              <textarea
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                placeholder="Any relevant info..."
-                rows={2}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              />
-            </div>
-
-            {error && <p className="text-red-600 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => applyForJob(job)}
-                disabled={applying === job.id}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
-                <Send className="w-4 h-4" />
-                {applying === job.id ? 'Submitting...' : 'Submit Application'}
-              </button>
-              <button onClick={() => setExpanded(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     )
   }
@@ -415,6 +335,255 @@ export function AvailableJobsClient({
         </div>
       )}
     </div>
+
+      {/* ─── Job Detail & Apply Modal ─── */}
+      {detailJob && (() => {
+        const job = detailJob
+        const isFreelancer = job._jobType === 'freelancer'
+        const matchingVehicles = getMatchingVehicles(job)
+        const stops = job.route_legs && job.route_legs.length > 0 ? job.route_legs : [job.pickup_address, job.dropoff_address]
+        const isDaily = job.job_type === 'daily'
+        const priceLabel =
+          job.price_type === 'per_hour' ? '/hr' :
+          job.price_type === 'per_day'  ? '/day' : ''
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => { setDetailJob(null); setError('') }} />
+            <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-xl max-h-[92vh] overflow-y-auto">
+              {/* Header */}
+              <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between rounded-t-2xl z-10">
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Job Details</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">{formatDate(job.job_date)} at {job.job_time}{job.end_time ? ` – ${job.end_time}` : ''}</p>
+                </div>
+                <button onClick={() => { setDetailJob(null); setError('') }} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-5">
+                {/* Route */}
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                    {isDaily ? 'Location' : `Route · ${stops.length - 1} leg${stops.length - 1 !== 1 ? 's' : ''}`}
+                  </p>
+                  {isDaily ? (
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                        <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-800">{stops[0]}</span>
+                    </div>
+                  ) : (
+                    stops.map((stop, i) => (
+                      <div key={i} className="flex items-start gap-2.5">
+                        <div className="flex flex-col items-center">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                            i === 0 ? 'bg-green-100 text-green-700' :
+                            i === stops.length - 1 ? 'bg-red-100 text-red-600' :
+                            'bg-blue-100 text-blue-600'
+                          }`}>{i === 0 ? 'A' : i === stops.length - 1 ? 'B' : i}</div>
+                          {i < stops.length - 1 && <div className="w-0.5 h-4 bg-gray-200 mt-1" />}
+                        </div>
+                        <div className="pt-1 min-w-0">
+                          <p className="text-sm text-gray-800 font-medium leading-snug">{stop}</p>
+                          {i === 0 && <p className="text-xs text-green-600 mt-0.5">Pickup</p>}
+                          {i === stops.length - 1 && i > 0 && <p className="text-xs text-red-500 mt-0.5">Drop-off</p>}
+                          {i > 0 && i < stops.length - 1 && <p className="text-xs text-blue-500 mt-0.5">Stop {i}</p>}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Key Info */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-blue-50 rounded-xl p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <PoundSterling className="w-3.5 h-3.5 text-blue-500" />
+                      <span className="text-xs font-semibold text-blue-700">Price</span>
+                    </div>
+                    <p className="text-lg font-bold text-blue-900">
+                      {job.price > 0 ? formatCurrency(job.price) : 'TBC'}
+                      {priceLabel && <span className="text-sm font-normal text-blue-500">{priceLabel}</span>}
+                    </p>
+                    {isDaily && job.hours_per_day && (
+                      <p className="text-xs text-blue-500 mt-0.5">{job.hours_per_day}h/day</p>
+                    )}
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Clock className="w-3.5 h-3.5 text-gray-500" />
+                      <span className="text-xs font-semibold text-gray-600">Date & Time</span>
+                    </div>
+                    <p className="text-sm font-bold text-gray-800">{formatDate(job.job_date)}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{job.job_time}{job.end_time ? ` – ${job.end_time}` : ''}</p>
+                  </div>
+                  {job.preferred_car_model && (
+                    <div className="col-span-2 bg-gray-50 rounded-xl p-3">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Car className="w-3.5 h-3.5 text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-600">Vehicle Required</span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-800">{job.preferred_car_model}</p>
+                      {job.preferred_car_type && <p className="text-xs text-gray-400 mt-0.5">{carTypeLabel(job.preferred_car_type)}</p>}
+                    </div>
+                  )}
+                  {!job.preferred_car_model && job.preferred_car_type && (
+                    <div className="col-span-2 bg-gray-50 rounded-xl p-3">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Car className="w-3.5 h-3.5 text-gray-500" />
+                        <span className="text-xs font-semibold text-gray-600">Vehicle Required</span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-800">{carTypeLabel(job.preferred_car_type)}</p>
+                    </div>
+                  )}
+                  {isDaily && job.number_of_days && (
+                    <div className="bg-amber-50 rounded-xl p-3">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Repeat className="w-3.5 h-3.5 text-amber-500" />
+                        <span className="text-xs font-semibold text-amber-700">Duration</span>
+                      </div>
+                      <p className="text-sm font-bold text-amber-800">{job.number_of_days} day{job.number_of_days !== 1 ? 's' : ''}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Source */}
+                <div className="flex items-center gap-2">
+                  {isFreelancer ? (
+                    <span className="flex items-center gap-1.5 bg-purple-50 text-purple-600 text-xs font-medium px-3 py-1.5 rounded-full">
+                      <Globe className="w-3.5 h-3.5" /> Marketplace Job
+                    </span>
+                  ) : job.visibility === 'platform' ? (
+                    <span className="flex items-center gap-1.5 bg-orange-50 text-orange-600 text-xs font-medium px-3 py-1.5 rounded-full">
+                      <Globe className="w-3.5 h-3.5" /> Outsourced Job
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5 bg-gray-100 text-gray-500 text-xs font-medium px-3 py-1.5 rounded-full">
+                      <Building2 className="w-3.5 h-3.5" /> Company Job
+                    </span>
+                  )}
+                  {isFreelancer && job.posted_by_driver && (
+                    <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
+                        {job.posted_by_driver.full_name.charAt(0)}
+                      </div>
+                      {job.posted_by_driver.full_name}
+                      {job.posted_by_driver.rating > 0 && (
+                        <span className="flex items-center gap-0.5 text-yellow-500">
+                          <Star className="w-3 h-3 fill-yellow-400" />
+                          {job.posted_by_driver.rating.toFixed(1)}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
+
+                {job.notes && (
+                  <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3">
+                    <p className="text-xs font-semibold text-yellow-800 mb-1">Notes from admin</p>
+                    <p className="text-sm text-yellow-700">{job.notes}</p>
+                  </div>
+                )}
+
+                {/* ─── Apply Form ─── */}
+                <div className="border-t border-gray-100 pt-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Submit Your Application</h3>
+
+                  {/* Vehicle selector */}
+                  {!isFreelancer && matchingVehicles.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Which vehicle will you use?</label>
+                      <div className="space-y-2">
+                        {matchingVehicles.map(v => (
+                          <button
+                            key={v.id}
+                            onClick={() => setSelectedVehicle(v.id)}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-sm text-left transition-colors ${
+                              selectedVehicle === v.id ? 'border-blue-500 bg-blue-50 text-blue-800' : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <Car className="w-4 h-4 flex-shrink-0" />
+                            <span className="font-medium">{v.make} {v.model}</span>
+                            <span className="text-gray-400 ml-auto">{v.registration}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Counter offer */}
+                  {!isFreelancer && (
+                    <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-semibold text-amber-800">Counter Offer (optional)</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs text-amber-700 mb-1">Your price (£)</label>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={counterPrice}
+                            onChange={e => setCounterPrice(e.target.value)}
+                            placeholder={`Original: ${formatCurrency(job.price)}`}
+                            className="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-amber-700 mb-1">Reason (optional)</label>
+                          <input
+                            type="text"
+                            value={counterNote}
+                            onChange={e => setCounterNote(e.target.value)}
+                            placeholder="e.g. distance, tolls"
+                            className="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Message */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                      {isFreelancer ? 'Message to poster (optional)' : 'Message to admin (optional)'}
+                    </label>
+                    <textarea
+                      value={message}
+                      onChange={e => setMessage(e.target.value)}
+                      placeholder="Any relevant info..."
+                      rows={2}
+                      className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    />
+                  </div>
+
+                  {error && <p className="text-red-600 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={async () => {
+                        await applyForJob(job)
+                        if (!error) setDetailJob(null)
+                      }}
+                      disabled={applying === job.id}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    >
+                      <Send className="w-4 h-4" />
+                      {applying === job.id ? 'Submitting...' : 'Submit Application'}
+                    </button>
+                    <button
+                      onClick={() => { setDetailJob(null); setError(''); setCounterPrice(''); setCounterNote(''); setSelectedVehicle(''); setMessage('') }}
+                      className="px-4 py-3 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Chat modal */}
       {chatJob && (

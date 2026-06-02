@@ -18,11 +18,12 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient()
 
-  // ─── Wallet top-up ───────────────────────────────────────────────────────────
+  // ─── Checkout completed (wallet top-up OR job payment) ───────────────────────
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
-    const { supabase_user_id, action, amount } = session.metadata ?? {}
+    const { supabase_user_id, action, amount, job_id, driver_id } = session.metadata ?? {}
 
+    // Wallet top-up (freelancer)
     if (action === 'wallet_topup' && supabase_user_id && amount) {
       const topupAmount = parseFloat(amount)
       const { data: wallet } = await admin
@@ -49,6 +50,47 @@ export async function POST(req: Request) {
         body: `£${topupAmount.toFixed(2)} has been added to your wallet.`,
         type: 'payment_received',
         link: '/dashboard/freelancer/wallet',
+      })
+    }
+
+    // Job payment (company pays driver)
+    if (action === 'job_payment' && job_id && driver_id && amount) {
+      const jobAmount = parseFloat(amount)
+
+      // Mark job as paid
+      await admin
+        .from('jobs')
+        .update({ payment_status: 'paid' })
+        .eq('id', job_id)
+
+      // Credit driver wallet
+      const { data: wallet } = await admin
+        .from('driver_wallets')
+        .select('balance')
+        .eq('driver_id', driver_id)
+        .single()
+
+      const newBalance = (wallet?.balance ?? 0) + jobAmount
+      await admin.from('driver_wallets').upsert({
+        driver_id,
+        balance: newBalance,
+        updated_at: new Date().toISOString(),
+      })
+
+      // Transaction record
+      const { data: job } = await admin
+        .from('jobs')
+        .select('pickup_address, dropoff_address, job_date')
+        .eq('id', job_id)
+        .single()
+
+      await admin.from('wallet_transactions').insert({
+        driver_id,
+        amount: jobAmount,
+        type: 'payment_received',
+        description: job
+          ? `Job payment: ${job.pickup_address} → ${job.dropoff_address}`
+          : `Job payment (${job_id})`,
       })
     }
   }

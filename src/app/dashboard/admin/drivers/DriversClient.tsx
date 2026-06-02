@@ -2,7 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Search, CheckCircle, Star, UserCheck, UserX, UserPlus, Copy, Check, X, Mail, Link2 } from 'lucide-react'
+import {
+  Users, Search, CheckCircle, Star, UserCheck, UserX, UserPlus,
+  Copy, Check, X, Mail, Link2, Heart, ShieldCheck, ShieldOff, AlertTriangle,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { driverStatusColor, carTypeLabel, formatDate } from '@/lib/utils'
@@ -25,13 +28,46 @@ interface DriversClientProps {
   drivers: Driver[]
   companyId: string
   pendingInvites: PendingInvite[]
+  preferredDriverIds: string[]
 }
 
-export function DriversClient({ drivers, companyId, pendingInvites: initialInvites }: DriversClientProps) {
+function daysUntil(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null
+  const diff = new Date(dateStr).getTime() - Date.now()
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
+
+function ExpiryBadge({ label, dateStr }: { label: string; dateStr?: string | null }) {
+  const days = daysUntil(dateStr)
+  if (days === null || days > 60) return null
+  const isExpired = days <= 0
+  const isUrgent  = days <= 14
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+      isExpired ? 'bg-red-100 text-red-700' :
+      isUrgent  ? 'bg-orange-100 text-orange-700' :
+                  'bg-yellow-50 text-yellow-700'
+    }`}>
+      <AlertTriangle className="w-2.5 h-2.5" />
+      {label} {isExpired ? 'expired' : `exp. ${formatDate(dateStr!)}`}
+    </span>
+  )
+}
+
+export function DriversClient({
+  drivers,
+  companyId,
+  pendingInvites: initialInvites,
+  preferredDriverIds: initialPreferred,
+}: DriversClientProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'company' | 'freelance'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'available' | 'on_job' | 'offline'>('all')
+  const [preferredIds, setPreferredIds] = useState<string[]>(initialPreferred)
+  const [verifiedMap, setVerifiedMap] = useState<Record<string, boolean>>(
+    Object.fromEntries(drivers.map(d => [d.id, d.is_verified]))
+  )
 
   // Invite state
   const [inviteModal, setInviteModal] = useState(false)
@@ -49,9 +85,41 @@ export function DriversClient({ drivers, companyId, pendingInvites: initialInvit
     return matchSearch && matchCat && matchStatus
   })
 
-  const companyCount = drivers.filter(d => d.driver_category === 'company').length
+  const companyCount   = drivers.filter(d => d.driver_category === 'company').length
   const freelanceCount = drivers.filter(d => d.driver_category === 'freelance').length
   const availableCount = drivers.filter(d => d.availability_status === 'available').length
+
+  // Count drivers with expiring licences (within 30 days)
+  const expiryAlerts = drivers.filter(d => {
+    const fields = [(d as any).tfl_licence_expiry, (d as any).hertz_licence_expiry, d.licence_expiry]
+    return fields.some(f => { const days = daysUntil(f); return days !== null && days <= 30 })
+  }).length
+
+  async function togglePreferred(driverId: string) {
+    const isPreferred = preferredIds.includes(driverId)
+    const res = await fetch('/api/drivers/prefer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driverId, preferred: !isPreferred }),
+    })
+    if (res.ok) {
+      setPreferredIds(prev =>
+        isPreferred ? prev.filter(id => id !== driverId) : [...prev, driverId]
+      )
+    }
+  }
+
+  async function toggleVerified(driverId: string) {
+    const current = verifiedMap[driverId] ?? false
+    const res = await fetch('/api/admin/drivers/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driverId, verified: !current }),
+    })
+    if (res.ok) {
+      setVerifiedMap(prev => ({ ...prev, [driverId]: !current }))
+    }
+  }
 
   async function handleInvite() {
     setInviting(true)
@@ -62,18 +130,11 @@ export function DriversClient({ drivers, companyId, pendingInvites: initialInvit
       body: JSON.stringify({ email: inviteEmail }),
     })
     const data = await res.json()
-    if (!res.ok) {
-      setInviteError(data.error ?? 'Failed to create invite')
-      setInviting(false)
-      return
-    }
+    if (!res.ok) { setInviteError(data.error ?? 'Failed to create invite'); setInviting(false); return }
     setInviteLink(data.link)
     setInviting(false)
-    // Add to pending list
     setPendingInvites(prev => [{
-      id: Date.now().toString(),
-      email: inviteEmail || null,
-      status: 'pending',
+      id: Date.now().toString(), email: inviteEmail || null, status: 'pending',
       created_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
     }, ...prev])
@@ -114,43 +175,40 @@ export function DriversClient({ drivers, companyId, pendingInvites: initialInvit
         </div>
         <button
           onClick={() => setInviteModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700
-                     text-white rounded-lg text-sm font-medium transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
         >
           <UserPlus className="w-4 h-4" />
           Invite Driver
         </button>
       </div>
 
+      {/* Expiry alert banner */}
+      {expiryAlerts > 0 && (
+        <div className="mb-5 flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+          <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+          <p className="text-sm text-orange-700">
+            <span className="font-semibold">{expiryAlerts} driver{expiryAlerts !== 1 ? 's' : ''}</span> {expiryAlerts !== 1 ? 'have' : 'has'} licences expiring within 30 days.
+          </p>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
-            <UserCheck className="w-5 h-5" />
+        {[
+          { icon: UserCheck, color: 'blue',   count: companyCount,   label: 'Company Drivers' },
+          { icon: UserX,     color: 'purple', count: freelanceCount,  label: 'Freelance Drivers' },
+          { icon: Users,     color: 'green',  count: availableCount,  label: 'Available Now' },
+        ].map(({ icon: Icon, color, count, label }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+            <div className={`w-9 h-9 bg-${color}-50 rounded-lg flex items-center justify-center text-${color}-600`}>
+              <Icon className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-gray-900">{count}</p>
+              <p className="text-xs text-gray-500">{label}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-xl font-bold text-gray-900">{companyCount}</p>
-            <p className="text-xs text-gray-500">Company Drivers</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
-          <div className="w-9 h-9 bg-purple-50 rounded-lg flex items-center justify-center text-purple-600">
-            <UserX className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-xl font-bold text-gray-900">{freelanceCount}</p>
-            <p className="text-xs text-gray-500">Freelance Drivers</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
-          <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center text-green-600">
-            <Users className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-xl font-bold text-gray-900">{availableCount}</p>
-            <p className="text-xs text-gray-500">Available Now</p>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Pending Invites */}
@@ -167,14 +225,11 @@ export function DriversClient({ drivers, companyId, pendingInvites: initialInvit
                   <p className="text-sm text-gray-700 truncate">
                     {invite.email ?? <span className="text-gray-400 italic">No email — link only</span>}
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Expires {new Date(invite.expires_at).toLocaleDateString('en-GB')}
-                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">Expires {new Date(invite.expires_at).toLocaleDateString('en-GB')}</p>
                 </div>
                 <button
                   onClick={() => handleCancelInvite(invite.id)}
                   className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
-                  title="Cancel invite"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -193,8 +248,7 @@ export function DriversClient({ drivers, companyId, pendingInvites: initialInvit
             placeholder="Search drivers..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm
-                       focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <select
@@ -240,26 +294,28 @@ export function DriversClient({ drivers, companyId, pendingInvites: initialInvit
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(driver => (
-            <DriverCard key={driver.id} driver={driver} />
+            <DriverCard
+              key={driver.id}
+              driver={driver}
+              isPreferred={preferredIds.includes(driver.id)}
+              isVerified={verifiedMap[driver.id] ?? driver.is_verified}
+              onTogglePreferred={() => togglePreferred(driver.id)}
+              onToggleVerified={() => toggleVerified(driver.id)}
+            />
           ))}
         </div>
       )}
 
       {/* Invite Modal */}
-      <Modal
-        isOpen={inviteModal}
-        onClose={closeInviteModal}
-        title="Invite a Driver"
-        size="sm"
-      >
+      <Modal isOpen={inviteModal} onClose={closeInviteModal} title="Invite a Driver" size="sm">
         {!inviteLink ? (
           <div className="space-y-4">
             <p className="text-sm text-gray-500">
-              Generate an invite link to share with your driver. They&apos;ll sign up and automatically join your company.
+              Generate an invite link to share with your driver. They'll sign up and automatically join your company.
             </p>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                Driver&apos;s Email <span className="text-gray-400">(optional)</span>
+                Driver's Email <span className="text-gray-400">(optional)</span>
               </label>
               <input
                 type="email"
@@ -270,15 +326,11 @@ export function DriversClient({ drivers, companyId, pendingInvites: initialInvit
               />
               <p className="text-xs text-gray-400 mt-1">If provided, pre-fills their signup form.</p>
             </div>
-
             {inviteError && (
               <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{inviteError}</p>
             )}
-
             <div className="flex justify-end gap-3">
-              <button onClick={closeInviteModal} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg">
-                Cancel
-              </button>
+              <button onClick={closeInviteModal} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg">Cancel</button>
               <button
                 onClick={handleInvite}
                 disabled={inviting}
@@ -294,7 +346,6 @@ export function DriversClient({ drivers, companyId, pendingInvites: initialInvit
               <Check className="w-4 h-4 flex-shrink-0" />
               <p className="text-sm font-medium">Invite link created — valid for 7 days</p>
             </div>
-
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Share this link</label>
               <div className="flex gap-2">
@@ -303,21 +354,19 @@ export function DriversClient({ drivers, companyId, pendingInvites: initialInvit
                 </div>
                 <button
                   onClick={() => copyLink(inviteLink)}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg flex-shrink-0 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg flex-shrink-0"
                 >
                   {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   {copied ? 'Copied!' : 'Copy'}
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
-                <Link2 className="w-3 h-3" />
-                Share via WhatsApp, email, or SMS
+                <Link2 className="w-3 h-3" /> Share via WhatsApp, email, or SMS
               </p>
             </div>
-
             <button
               onClick={closeInviteModal}
-              className="w-full py-2 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+              className="w-full py-2 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg"
             >
               Done
             </button>
@@ -328,8 +377,17 @@ export function DriversClient({ drivers, companyId, pendingInvites: initialInvit
   )
 }
 
-function DriverCard({ driver }: { driver: Driver }) {
+function DriverCard({
+  driver, isPreferred, isVerified, onTogglePreferred, onToggleVerified,
+}: {
+  driver: Driver
+  isPreferred: boolean
+  isVerified: boolean
+  onTogglePreferred: () => void
+  onToggleVerified: () => void
+}) {
   const stars = Math.round(driver.rating)
+  const d = driver as any
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-sm transition-shadow">
@@ -339,30 +397,54 @@ function DriverCard({ driver }: { driver: Driver }) {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={driver.photo_url} alt={driver.full_name} className="w-full h-full object-cover" />
           ) : (
-            <span className="text-gray-500 font-semibold text-lg">
-              {driver.full_name.charAt(0).toUpperCase()}
-            </span>
+            <span className="text-gray-500 font-semibold text-lg">{driver.full_name.charAt(0).toUpperCase()}</span>
           )}
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <h3 className="font-semibold text-gray-900 text-sm truncate">{driver.full_name}</h3>
-            {driver.is_verified && (
-              <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" aria-label="Verified Driver" />
-            )}
+            {isVerified && <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" aria-label="Verified" />}
+            {isPreferred && <Heart className="w-3.5 h-3.5 text-pink-500 fill-pink-500 flex-shrink-0" aria-label="Preferred" />}
           </div>
           <div className="flex items-center gap-1 mt-0.5">
             {[1, 2, 3, 4, 5].map(n => (
-              <Star
-                key={n}
-                className={`w-3 h-3 ${n <= stars ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200 fill-gray-200'}`}
-              />
+              <Star key={n} className={`w-3 h-3 ${n <= stars ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200 fill-gray-200'}`} />
             ))}
             <span className="text-xs text-gray-400 ml-1">
               {driver.rating > 0 ? `${driver.rating.toFixed(1)} (${driver.rating_count})` : 'No ratings'}
             </span>
           </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Preferred toggle — freelance only */}
+          {driver.driver_category === 'freelance' && (
+            <button
+              onClick={onTogglePreferred}
+              title={isPreferred ? 'Remove from preferred' : 'Mark as preferred'}
+              className={`p-1.5 rounded-lg transition-colors ${
+                isPreferred
+                  ? 'text-pink-500 bg-pink-50 hover:bg-pink-100'
+                  : 'text-gray-300 hover:text-pink-400 hover:bg-pink-50'
+              }`}
+            >
+              <Heart className={`w-4 h-4 ${isPreferred ? 'fill-pink-500' : ''}`} />
+            </button>
+          )}
+          {/* Verify toggle */}
+          <button
+            onClick={onToggleVerified}
+            title={isVerified ? 'Remove verification' : 'Verify driver'}
+            className={`p-1.5 rounded-lg transition-colors ${
+              isVerified
+                ? 'text-blue-500 bg-blue-50 hover:bg-blue-100'
+                : 'text-gray-300 hover:text-blue-400 hover:bg-blue-50'
+            }`}
+          >
+            {isVerified ? <ShieldCheck className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
+          </button>
         </div>
       </div>
 
@@ -381,12 +463,13 @@ function DriverCard({ driver }: { driver: Driver }) {
           <span className="text-gray-500">Car Type</span>
           <span className="text-gray-700">{carTypeLabel(driver.car_type)}</span>
         </div>
-        {driver.licence_expiry && (
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-500">Licence Exp.</span>
-            <span className="text-gray-700">{formatDate(driver.licence_expiry)}</span>
-          </div>
-        )}
+      </div>
+
+      {/* Licence expiry warnings */}
+      <div className="mt-2.5 flex flex-wrap gap-1">
+        <ExpiryBadge label="DVLA" dateStr={driver.licence_expiry} />
+        <ExpiryBadge label="TFL"  dateStr={d.tfl_licence_expiry} />
+        <ExpiryBadge label="Hertz" dateStr={d.hertz_licence_expiry} />
       </div>
     </div>
   )

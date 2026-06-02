@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Briefcase, MapPin, Clock, CheckCircle, Star,
   AlertCircle, PlayCircle, Car, Navigation, NavigationOff,
-  TrendingUp, Wallet, ChevronRight, FileText, User
+  TrendingUp, Wallet, ChevronRight, FileText, User, AlertTriangle,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
@@ -21,6 +21,9 @@ interface DriverProfile {
   car_type: string
   photo_url?: string | null
   licence_number?: string | null
+  licence_expiry?: string | null
+  tfl_licence_expiry?: string | null
+  hertz_licence_expiry?: string | null
 }
 
 interface Props {
@@ -134,8 +137,46 @@ export function DriverDashboardClient({ driverName, driverProfile, jobs: initial
   }
   const currentStatus = availabilityConfig[availability] ?? availabilityConfig.offline
 
+  // Licence expiry alerts
+  const licenceAlerts: { label: string; expiry: string | null | undefined }[] = [
+    { label: 'DVLA Licence',  expiry: driverProfile?.licence_expiry },
+    { label: 'TFL Licence',   expiry: driverProfile?.tfl_licence_expiry },
+    { label: 'Hertz Licence', expiry: driverProfile?.hertz_licence_expiry },
+  ].filter(({ expiry }) => {
+    if (!expiry) return false
+    const days = Math.ceil((new Date(expiry).getTime() - Date.now()) / 86400000)
+    return days <= 60
+  })
+
   return (
     <div className="p-4 sm:p-6 max-w-4xl space-y-5">
+
+      {/* ── Licence expiry alerts ── */}
+      {licenceAlerts.map(({ label, expiry }) => {
+        const days = Math.ceil((new Date(expiry!).getTime() - Date.now()) / 86400000)
+        const expired = days <= 0
+        const urgent  = days <= 14
+        return (
+          <div key={label} className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-sm ${
+            expired ? 'bg-red-50 border-red-200 text-red-700' :
+            urgent  ? 'bg-orange-50 border-orange-200 text-orange-700' :
+                      'bg-yellow-50 border-yellow-200 text-yellow-700'
+          }`}>
+            <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-semibold">
+                {expired ? `${label} has expired` : `${label} expiring soon`}
+              </p>
+              <p className="text-xs mt-0.5 opacity-80">
+                {expired
+                  ? `Expired on ${new Date(expiry!).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}. Please renew immediately.`
+                  : `Expires in ${days} day${days !== 1 ? 's' : ''} — ${new Date(expiry!).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                }
+              </p>
+            </div>
+          </div>
+        )
+      })}
 
       {/* ── Profile header ── */}
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-white">

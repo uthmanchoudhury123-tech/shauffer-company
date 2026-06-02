@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Plus, Briefcase, Search, MapPin, Clock, UserCheck,
   ArrowRight, ChevronDown, ChevronUp, X, Repeat,
-  Building2, Globe, User2, MessageSquare, FileText,
+  Building2, Globe, User2, MessageSquare, FileText, CreditCard, Star,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
@@ -93,6 +93,7 @@ const emptyForm = {
   hours_per_day: '',
   number_of_days: '',
   price: '',
+  price_type: 'fixed' as 'fixed' | 'per_hour' | 'per_day',
   preferred_car_type: '' as CarType | '',
   preferred_car_model: '',
   notes: '',
@@ -164,6 +165,49 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
     counter_price: number | null; counter_note: string | null;
   }[]>([])
   const [loadingApps, setLoadingApps] = useState(false)
+
+  // Review modal
+  const [reviewModal, setReviewModal] = useState(false)
+  const [reviewJob, setReviewJob] = useState<Job | null>(null)
+  const [reviewRating, setReviewRating] = useState(0)
+  const [reviewComment, setReviewComment] = useState('')
+  const [reviewSaving, setReviewSaving] = useState(false)
+  const [reviewedJobIds, setReviewedJobIds] = useState<Set<string>>(new Set())
+
+  async function submitReview() {
+    if (!reviewJob || !reviewJob.driver_id || reviewRating === 0) return
+    setReviewSaving(true)
+    await fetch('/api/reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId: reviewJob.id, driverId: reviewJob.driver_id, rating: reviewRating, comment: reviewComment }),
+    })
+    setReviewedJobIds(prev => new Set([...prev, reviewJob.id]))
+    setReviewModal(false)
+    setReviewJob(null)
+    setReviewRating(0)
+    setReviewComment('')
+    setReviewSaving(false)
+  }
+
+  // Pay driver
+  const [payingJob, setPayingJob] = useState<string | null>(null)
+
+  async function payDriver(jobId: string) {
+    setPayingJob(jobId)
+    const res = await fetch('/api/stripe/jobs/pay-driver', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId }),
+    })
+    const json = await res.json()
+    if (res.ok && json.url) {
+      window.location.href = json.url
+    } else {
+      alert(json.error ?? 'Failed to start payment')
+    }
+    setPayingJob(null)
+  }
 
   // Chat state
   const [chatOpen, setChatOpen] = useState(false)
@@ -242,6 +286,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       hours_per_day: isDaily && form.hours_per_day ? Number(form.hours_per_day) : null,
       number_of_days: isDaily && form.number_of_days ? Number(form.number_of_days) : null,
       price: Number(form.price) || 0,
+      price_type: isDaily ? form.price_type : 'fixed',
       preferred_car_type: form.preferred_car_type || null,
       preferred_car_model: form.preferred_car_model || null,
       notes: form.notes || null,
@@ -484,7 +529,11 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                             Daily{job.hours_per_day ? ` · ${job.hours_per_day}h/day` : ''}{job.number_of_days ? ` · ${job.number_of_days} day${job.number_of_days !== 1 ? 's' : ''}` : ''}
                           </span>
                         )}
-                        <span className="font-semibold text-gray-700">{formatCurrency(job.price)}</span>
+                        <span className="font-semibold text-gray-700">
+                          {formatCurrency(job.price)}
+                          {jobIsDaily && (job as any).price_type === 'per_hour' && <span className="font-normal text-gray-400">/hr</span>}
+                          {jobIsDaily && (job as any).price_type === 'per_day'  && <span className="font-normal text-gray-400">/day</span>}
+                        </span>
                         {job.preferred_car_model && (
                           <span className="text-gray-500 italic">{job.preferred_car_model}</span>
                         )}
@@ -545,15 +594,46 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                           </button>
                         )}
                         {job.status === 'completed' && (
-                          <a
-                            href={`/api/jobs/${job.id}/invoice`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-lg transition-colors font-medium"
-                          >
-                            <FileText className="w-3 h-3" />
-                            Invoice
-                          </a>
+                          <>
+                            <a
+                              href={`/api/jobs/${job.id}/invoice`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-lg transition-colors font-medium"
+                            >
+                              <FileText className="w-3 h-3" />
+                              Invoice
+                            </a>
+                            {job.driver_id && (job as any).payment_status !== 'paid' && (
+                              <button
+                                onClick={() => payDriver(job.id)}
+                                disabled={payingJob === job.id}
+                                className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded-lg transition-colors font-medium disabled:opacity-50"
+                              >
+                                <CreditCard className="w-3 h-3" />
+                                {payingJob === job.id ? '...' : 'Pay Driver'}
+                              </button>
+                            )}
+                            {(job as any).payment_status === 'paid' && (
+                              <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-lg font-medium">
+                                ✓ Paid
+                              </span>
+                            )}
+                            {job.driver_id && !reviewedJobIds.has(job.id) && (
+                              <button
+                                onClick={() => { setReviewJob(job); setReviewRating(0); setReviewComment(''); setReviewModal(true) }}
+                                className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 border border-yellow-200 rounded-lg transition-colors font-medium"
+                              >
+                                <Star className="w-3 h-3" />
+                                Rate Driver
+                              </button>
+                            )}
+                            {reviewedJobIds.has(job.id) && (
+                              <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded-lg font-medium">
+                                ★ Rated
+                              </span>
+                            )}
+                          </>
                         )}
                         {(job.status === 'pending' || job.status === 'assigned') && (
                           <button
@@ -688,26 +768,52 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
 
           {/* Daily hire fields */}
           {isDaily && (
-            <div className="grid grid-cols-2 gap-4 bg-amber-50 rounded-lg p-3 border border-amber-100">
-              <div>
-                <label className="block text-xs font-medium text-amber-800 mb-1">Hours per day</label>
-                <input
-                  type="number" min="1" max="24" step="0.5"
-                  className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
-                  value={form.hours_per_day}
-                  onChange={e => setForm(f => ({ ...f, hours_per_day: e.target.value }))}
-                  placeholder="e.g. 8"
-                />
+            <div className="bg-amber-50 rounded-lg p-3 border border-amber-100 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-amber-800 mb-1">Hours per day</label>
+                  <input
+                    type="number" min="1" max="24" step="0.5"
+                    className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                    value={form.hours_per_day}
+                    onChange={e => setForm(f => ({ ...f, hours_per_day: e.target.value }))}
+                    placeholder="e.g. 8"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-amber-800 mb-1">Number of days</label>
+                  <input
+                    type="number" min="1"
+                    className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                    value={form.number_of_days}
+                    onChange={e => setForm(f => ({ ...f, number_of_days: e.target.value }))}
+                    placeholder="e.g. 5"
+                  />
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-amber-800 mb-1">Number of days</label>
-                <input
-                  type="number" min="1"
-                  className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
-                  value={form.number_of_days}
-                  onChange={e => setForm(f => ({ ...f, number_of_days: e.target.value }))}
-                  placeholder="e.g. 5"
-                />
+                <label className="block text-xs font-medium text-amber-800 mb-1">Price Type</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { key: 'fixed',    label: 'Fixed',      desc: 'Total price' },
+                    { key: 'per_hour', label: 'Per Hour',   desc: 'Rate × hours' },
+                    { key: 'per_day',  label: 'Per Day',    desc: 'Rate × days' },
+                  ] as const).map(({ key, label, desc }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, price_type: key }))}
+                      className={`flex flex-col items-center gap-0.5 p-2 rounded-lg border text-xs transition-colors ${
+                        form.price_type === key
+                          ? 'border-amber-500 bg-amber-100 text-amber-800 font-semibold'
+                          : 'border-amber-200 bg-white text-amber-700 hover:border-amber-400'
+                      }`}
+                    >
+                      <span>{label}</span>
+                      <span className="text-amber-500 font-normal">{desc}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -715,7 +821,10 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
           {/* Price & Car Category */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Price (£)</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                {isDaily && form.price_type === 'per_hour' ? 'Rate per Hour (£)' :
+                 isDaily && form.price_type === 'per_day'  ? 'Rate per Day (£)' : 'Price (£)'}
+              </label>
               <input
                 type="number" min="0" step="0.01"
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1045,6 +1154,57 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
               ))}
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* ─── Rate Driver Modal ─── */}
+      <Modal isOpen={reviewModal} onClose={() => setReviewModal(false)} title="Rate Driver" size="sm">
+        <div className="space-y-4">
+          {reviewJob && (
+            <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm">
+              <p className="font-medium text-gray-700">{reviewJob.pickup_address} → {reviewJob.dropoff_address}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{reviewJob.job_date} · {drivers.find(d => d.id === reviewJob.driver_id)?.full_name ?? 'Driver'}</p>
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-2">Rating *</label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  onClick={() => setReviewRating(n)}
+                  className="p-1 transition-transform hover:scale-110"
+                >
+                  <Star className={`w-8 h-8 ${n <= reviewRating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200 fill-gray-200'}`} />
+                </button>
+              ))}
+            </div>
+            {[0,1,2,3,4,5].includes(reviewRating) && reviewRating > 0 && (
+              <p className="text-xs text-gray-400 mt-1.5">
+                {reviewRating === 1 ? 'Poor' : reviewRating === 2 ? 'Below average' : reviewRating === 3 ? 'Average' : reviewRating === 4 ? 'Good' : 'Excellent'}
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Comment (optional)</label>
+            <textarea
+              rows={3}
+              value={reviewComment}
+              onChange={e => setReviewComment(e.target.value)}
+              placeholder="Punctual, professional, great service..."
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <button onClick={() => setReviewModal(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg">Cancel</button>
+            <button
+              onClick={submitReview}
+              disabled={reviewRating === 0 || reviewSaving}
+              className="px-4 py-2 text-sm bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-white rounded-lg font-medium"
+            >
+              {reviewSaving ? 'Saving...' : 'Submit Review'}
+            </button>
+          </div>
         </div>
       </Modal>
 

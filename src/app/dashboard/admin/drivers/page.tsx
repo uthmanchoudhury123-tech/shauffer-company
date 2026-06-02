@@ -14,7 +14,7 @@ export default async function DriversPage() {
 
   const companyId = profile?.company_id ?? ''
 
-  const [{ data: drivers }, { data: invites }] = await Promise.all([
+  const [{ data: drivers }, { data: invites }, { data: preferred }] = await Promise.all([
     supabase
       .from('drivers')
       .select('*')
@@ -26,13 +26,20 @@ export default async function DriversPage() {
       .eq('company_id', companyId)
       .eq('status', 'pending')
       .order('created_at', { ascending: false }),
+    supabase
+      .from('preferred_drivers')
+      .select('driver_id')
+      .eq('company_id', companyId),
   ])
+
+  const preferredIds = (preferred ?? []).map((p: any) => p.driver_id)
 
   return (
     <DriversClient
       drivers={drivers ?? []}
       companyId={companyId}
       pendingInvites={invites ?? []}
+      preferredDriverIds={preferredIds}
     />
   )
 }

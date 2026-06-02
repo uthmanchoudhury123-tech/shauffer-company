@@ -11,6 +11,10 @@ export async function POST(req: Request) {
   const admin = createAdminClient()
   const origin = req.headers.get('origin') ?? 'https://shauffer-company.vercel.app'
 
+  // Allow caller to specify a return path (e.g. driver vs freelancer wallet)
+  const body = await req.json().catch(() => ({}))
+  const returnPath: string = body?.returnPath ?? '/dashboard/freelancer/wallet'
+
   // Check if already has a Connect account
   let { data: stripeAccount } = await admin
     .from('stripe_accounts')
@@ -56,8 +60,8 @@ export async function POST(req: Request) {
   // Create onboarding link
   const accountLink = await stripe.accountLinks.create({
     account: connectId,
-    refresh_url: `${origin}/dashboard/freelancer/wallet?connect=refresh`,
-    return_url: `${origin}/dashboard/freelancer/wallet?connect=success`,
+    refresh_url: `${origin}${returnPath}?connect=refresh`,
+    return_url:  `${origin}${returnPath}?connect=success`,
     type: 'account_onboarding',
   })
 
