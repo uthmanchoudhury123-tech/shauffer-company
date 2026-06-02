@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getStripe } from '@/lib/stripe'
+import Stripe from 'stripe'
+
+// Use platform Stripe key directly (no stripeAccount) — this is a platform-level charge
+const platformStripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2026-03-25.dahlia',
+})
 
 export async function POST(req: Request) {
   try {
@@ -30,9 +35,8 @@ export async function POST(req: Request) {
     }
 
     const amountPounds = parseFloat(Number(amount).toFixed(2))
-    const stripe = getStripe()
 
-    const session = await stripe.checkout.sessions.create({
+    const session = await platformStripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
       line_items: [{
