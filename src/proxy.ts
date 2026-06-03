@@ -89,6 +89,13 @@ export async function proxy(request: NextRequest) {
     return redirectToDashboard()
   }
 
+  // Anyone hitting the old /dashboard/freelancer → send to /dashboard/driver
+  if (pathname.startsWith('/dashboard/freelancer')) {
+    const url = request.nextUrl.clone()
+    url.pathname = pathname.replace('/dashboard/freelancer', '/dashboard/driver')
+    return NextResponse.redirect(url)
+  }
+
   // Company admin accessing their dashboard — check they have a company
   if (user && pathname.startsWith('/dashboard/admin')) {
     const { data: profile } = await supabase
