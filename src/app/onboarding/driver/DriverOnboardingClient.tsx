@@ -15,10 +15,11 @@ const STEPS = ['Your Details', 'Vehicle', 'Licences']
 interface LicenceState {
   number: string
   expiry: string
-  photoUrl: string
+  photoFront: string
+  photoBack: string
 }
 
-const emptyLicence: LicenceState = { number: '', expiry: '', photoUrl: '' }
+const emptyLicence: LicenceState = { number: '', expiry: '', photoFront: '', photoBack: '' }
 
 export function DriverOnboardingClient({
   userId, defaultName, email, role,
@@ -28,33 +29,40 @@ export function DriverOnboardingClient({
   email: string
   role: string
 }) {
-  const [step, setStep] = useState(0)
+  const [step, setStep]     = useState(0)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError]   = useState('')
 
   // Step 0 — details
-  const [fullName, setFullName] = useState(defaultName)
-  const [phone, setPhone] = useState('')
-  const [photoUrl, setPhotoUrl] = useState('')
+  const [fullName, setFullName]       = useState(defaultName)
+  const [phone, setPhone]             = useState('')
+  const [photoUrl, setPhotoUrl]       = useState('')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const profilePhotoRef = useRef<HTMLInputElement>(null)
 
-  // Step 1 — vehicle
+  // Step 1 — vehicle (inside + outside mandatory)
+  const [vehiclePhotoOutside, setVehiclePhotoOutside] = useState('')
+  const [vehiclePhotoInside,  setVehiclePhotoInside]  = useState('')
+  const [uploadingVehicle, setUploadingVehicle] = useState<'outside'|'inside'|null>(null)
+  const vehicleOutsideRef = useRef<HTMLInputElement>(null)
+  const vehicleInsideRef  = useRef<HTMLInputElement>(null)
   const [carType, setCarType] = useState('saloon')
-  const [vehiclePhotoUrl, setVehiclePhotoUrl] = useState('')
-  const [uploadingVehicle, setUploadingVehicle] = useState(false)
-  const vehiclePhotoRef = useRef<HTMLInputElement>(null)
 
   // Step 2 — licences
-  const [dvla, setDvla] = useState<LicenceState>(emptyLicence)
-  const [tfl,  setTfl]  = useState<LicenceState>(emptyLicence)
-  const [hertz, setHertz] = useState<LicenceState>(emptyLicence)
+  const [dvla,           setDvla]           = useState<LicenceState>(emptyLicence)
+  const [tflDriver,      setTflDriver]      = useState<LicenceState>(emptyLicence)
+  const [tflVehicle,     setTflVehicle]     = useState<LicenceState>(emptyLicence)
+  const [hertsmere,      setHertsmere]      = useState<LicenceState>(emptyLicence)
   const [uploadingLicence, setUploadingLicence] = useState<string | null>(null)
-  const dvlaRef  = useRef<HTMLInputElement>(null)
-  const tflRef   = useRef<HTMLInputElement>(null)
-  const hertzRef = useRef<HTMLInputElement>(null)
 
-  const isFreelancer = role === 'freelance_driver'
+  const dvlaFrontRef        = useRef<HTMLInputElement>(null)
+  const dvlaBackRef         = useRef<HTMLInputElement>(null)
+  const tflDriverFrontRef   = useRef<HTMLInputElement>(null)
+  const tflDriverBackRef    = useRef<HTMLInputElement>(null)
+  const tflVehicleFrontRef  = useRef<HTMLInputElement>(null)
+  const tflVehicleBackRef   = useRef<HTMLInputElement>(null)
+  const hertFrontRef        = useRef<HTMLInputElement>(null)
+  const hertBackRef         = useRef<HTMLInputElement>(null)
 
   async function uploadToStorage(file: File, path: string): Promise<string | null> {
     const supabase = createClient()
@@ -76,30 +84,34 @@ export function DriverOnboardingClient({
     setUploadingPhoto(false)
   }
 
-  async function handleVehiclePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleVehiclePhoto(e: React.ChangeEvent<HTMLInputElement>, side: 'outside'|'inside') {
     const file = e.target.files?.[0]; if (!file) return
-    setUploadingVehicle(true)
-    const url = await uploadToStorage(file, `driver-vehicles/${userId}`)
-    if (url) setVehiclePhotoUrl(url)
-    setUploadingVehicle(false)
+    setUploadingVehicle(side)
+    const url = await uploadToStorage(file, `driver-vehicles/${userId}/${side}`)
+    if (url) {
+      if (side === 'outside') setVehiclePhotoOutside(url)
+      else setVehiclePhotoInside(url)
+    }
+    setUploadingVehicle(null)
   }
 
   async function handleLicencePhoto(
     e: React.ChangeEvent<HTMLInputElement>,
-    type: 'dvla' | 'tfl' | 'hertz'
+    key: string,
+    side: 'front'|'back',
+    setter: React.Dispatch<React.SetStateAction<LicenceState>>
   ) {
     const file = e.target.files?.[0]; if (!file) return
-    setUploadingLicence(type)
-    const url = await uploadToStorage(file, `licences/${userId}/${type}`)
-    if (url) {
-      const setter = type === 'dvla' ? setDvla : type === 'tfl' ? setTfl : setHertz
-      setter(prev => ({ ...prev, photoUrl: url }))
-    }
+    const uploadKey = `${key}-${side}`
+    setUploadingLicence(uploadKey)
+    const url = await uploadToStorage(file, `licences/${userId}/${key}/${side}`)
+    if (url) setter(prev => side === 'front' ? { ...prev, photoFront: url } : { ...prev, photoBack: url })
     setUploadingLicence(null)
   }
 
   function canProceed() {
     if (step === 0) return fullName.trim().length > 0
+    if (step === 1) return vehiclePhotoOutside !== '' && vehiclePhotoInside !== ''
     return true
   }
 
@@ -111,23 +123,33 @@ export function DriverOnboardingClient({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          full_name: fullName,
+          full_name:    fullName,
           phone,
-          car_type: carType,
-          photo_url: photoUrl || null,
-          vehicle_photo_url: vehiclePhotoUrl || null,
+          car_type:     carType,
+          photo_url:    photoUrl || null,
+          // Vehicle
+          vehicle_photo_outside: vehiclePhotoOutside || null,
+          vehicle_photo_inside:  vehiclePhotoInside  || null,
           // DVLA
-          licence_number: dvla.number || null,
-          licence_expiry: dvla.expiry || null,
-          dvla_licence_photo: dvla.photoUrl || null,
-          // TFL
-          tfl_licence_number: tfl.number || null,
-          tfl_licence_expiry: tfl.expiry || null,
-          tfl_licence_photo: tfl.photoUrl || null,
-          // Hertz
-          hertz_licence_number: hertz.number || null,
-          hertz_licence_expiry: hertz.expiry || null,
-          hertz_licence_photo: hertz.photoUrl || null,
+          licence_number:    dvla.number  || null,
+          licence_expiry:    dvla.expiry  || null,
+          dvla_photo_front:  dvla.photoFront || null,
+          dvla_photo_back:   dvla.photoBack  || null,
+          // TFL Driver
+          tfl_licence_number:      tflDriver.number     || null,
+          tfl_licence_expiry:      tflDriver.expiry     || null,
+          tfl_driver_photo_front:  tflDriver.photoFront || null,
+          tfl_driver_photo_back:   tflDriver.photoBack  || null,
+          // TFL Vehicle
+          tfl_vehicle_number:       tflVehicle.number     || null,
+          tfl_vehicle_expiry:       tflVehicle.expiry     || null,
+          tfl_vehicle_photo_front:  tflVehicle.photoFront || null,
+          tfl_vehicle_photo_back:   tflVehicle.photoBack  || null,
+          // Hertsmere
+          hertsmere_number:       hertsmere.number     || null,
+          hertsmere_expiry:       hertsmere.expiry     || null,
+          hertsmere_photo_front:  hertsmere.photoFront || null,
+          hertsmere_photo_back:   hertsmere.photoBack  || null,
         }),
       })
       let data: { error?: string } = {}
@@ -149,9 +171,7 @@ export function DriverOnboardingClient({
             <Car className="w-6 h-6 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Set up your driver profile</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            {isFreelancer ? 'Freelancer portal' : 'Company driver portal'} · Takes 2 minutes
-          </p>
+          <p className="text-gray-500 text-sm mt-1">Takes about 3 minutes</p>
         </div>
 
         {/* Step indicators */}
@@ -216,28 +236,7 @@ export function DriverOnboardingClient({
           {step === 1 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-2">
-                  Vehicle Photo <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <div className="flex items-center gap-4">
-                  <div className="w-28 h-20 rounded-xl overflow-hidden border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center flex-shrink-0">
-                    {vehiclePhotoUrl ? <img src={vehiclePhotoUrl} alt="Vehicle" className="w-full h-full object-cover" /> : <Car className="w-8 h-8 text-gray-300" />}
-                  </div>
-                  <div>
-                    <button type="button" onClick={() => vehiclePhotoRef.current?.click()}
-                      className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-xs font-medium text-gray-600">
-                      <Camera className="w-3.5 h-3.5" />
-                      {uploadingVehicle ? 'Uploading…' : vehiclePhotoUrl ? 'Change Photo' : 'Upload Photo'}
-                    </button>
-                    <input ref={vehiclePhotoRef} type="file" accept="image/*" className="hidden" onChange={handleVehiclePhoto} disabled={uploadingVehicle} />
-                    <p className="text-xs text-gray-400 mt-1">Shown when applying for jobs</p>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
-                  <Car className="w-3.5 h-3.5" /> Vehicle Type
-                </label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Vehicle Type</label>
                 <div className="grid grid-cols-2 gap-2">
                   {CAR_TYPES.map(t => (
                     <button key={t} type="button" onClick={() => setCarType(t)}
@@ -249,64 +248,116 @@ export function DriverOnboardingClient({
                   ))}
                 </div>
               </div>
+
+              {/* Outside photo — mandatory */}
+              <VehiclePhotoSlot
+                label="Outside photo"
+                required
+                hint="Clear exterior shot"
+                url={vehiclePhotoOutside}
+                uploading={uploadingVehicle === 'outside'}
+                onUpload={() => vehicleOutsideRef.current?.click()}
+                onClear={() => setVehiclePhotoOutside('')}
+              />
+              <input ref={vehicleOutsideRef} type="file" accept="image/*" className="hidden"
+                onChange={e => handleVehiclePhoto(e, 'outside')} disabled={uploadingVehicle !== null} />
+
+              {/* Inside photo — mandatory */}
+              <VehiclePhotoSlot
+                label="Inside photo"
+                required
+                hint="Dashboard + interior"
+                url={vehiclePhotoInside}
+                uploading={uploadingVehicle === 'inside'}
+                onUpload={() => vehicleInsideRef.current?.click()}
+                onClear={() => setVehiclePhotoInside('')}
+              />
+              <input ref={vehicleInsideRef} type="file" accept="image/*" className="hidden"
+                onChange={e => handleVehiclePhoto(e, 'inside')} disabled={uploadingVehicle !== null} />
+
+              {(!vehiclePhotoOutside || !vehiclePhotoInside) && (
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                  Both vehicle photos are required before you can continue.
+                </p>
+              )}
             </div>
           )}
 
           {/* ── Step 2: Licences ── */}
           {step === 2 && (
             <div className="space-y-5">
-              <p className="text-xs text-gray-500">All licence fields are optional — you can add them later from your profile.</p>
+              <p className="text-xs text-gray-500">Upload front and back of each licence. All fields optional — add now or update from profile later.</p>
 
-              {/* DVLA Driving Licence */}
               <LicenceSection
                 title="DVLA Driving Licence"
                 icon="🪪"
                 state={dvla}
                 onChange={setDvla}
-                onPhotoClick={() => dvlaRef.current?.click()}
-                uploading={uploadingLicence === 'dvla'}
-                inputRef={dvlaRef}
-                onFileChange={e => handleLicencePhoto(e, 'dvla')}
+                uploadKey="dvla"
+                frontRef={dvlaFrontRef}
+                backRef={dvlaBackRef}
+                uploading={uploadingLicence}
+                onFrontFile={e => handleLicencePhoto(e, 'dvla', 'front', setDvla)}
+                onBackFile={e => handleLicencePhoto(e, 'dvla', 'back', setDvla)}
                 numberPlaceholder="e.g. SMITH901234AB9CD"
               />
 
-              {/* TFL Private Hire Licence */}
               <LicenceSection
-                title="TfL Private Hire Licence"
+                title="TfL Driver Licence"
                 icon="🚖"
                 badge="TfL"
-                state={tfl}
-                onChange={setTfl}
-                onPhotoClick={() => tflRef.current?.click()}
-                uploading={uploadingLicence === 'tfl'}
-                inputRef={tflRef}
-                onFileChange={e => handleLicencePhoto(e, 'tfl')}
+                state={tflDriver}
+                onChange={setTflDriver}
+                uploadKey="tfl-driver"
+                frontRef={tflDriverFrontRef}
+                backRef={tflDriverBackRef}
+                uploading={uploadingLicence}
+                onFrontFile={e => handleLicencePhoto(e, 'tfl-driver', 'front', setTflDriver)}
+                onBackFile={e => handleLicencePhoto(e, 'tfl-driver', 'back', setTflDriver)}
                 numberPlaceholder="e.g. PHV/12345/2"
               />
 
-              {/* Hertz Licence */}
               <LicenceSection
-                title="Hertz Licence"
+                title="TfL Vehicle Licence"
+                icon="🚗"
+                badge="TfL"
+                state={tflVehicle}
+                onChange={setTflVehicle}
+                uploadKey="tfl-vehicle"
+                frontRef={tflVehicleFrontRef}
+                backRef={tflVehicleBackRef}
+                uploading={uploadingLicence}
+                onFrontFile={e => handleLicencePhoto(e, 'tfl-vehicle', 'front', setTflVehicle)}
+                onBackFile={e => handleLicencePhoto(e, 'tfl-vehicle', 'back', setTflVehicle)}
+                numberPlaceholder="e.g. PH/1234567"
+              />
+
+              <LicenceSection
+                title="Hertsmere Licence"
                 icon="🔑"
-                badge="Hertz"
-                state={hertz}
-                onChange={setHertz}
-                onPhotoClick={() => hertzRef.current?.click()}
-                uploading={uploadingLicence === 'hertz'}
-                inputRef={hertzRef}
-                onFileChange={e => handleLicencePhoto(e, 'hertz')}
-                numberPlaceholder="e.g. HRZ-12345"
+                badge="HBC"
+                state={hertsmere}
+                onChange={setHertsmere}
+                uploadKey="hertsmere"
+                frontRef={hertFrontRef}
+                backRef={hertBackRef}
+                uploading={uploadingLicence}
+                onFrontFile={e => handleLicencePhoto(e, 'hertsmere', 'front', setHertsmere)}
+                onBackFile={e => handleLicencePhoto(e, 'hertsmere', 'back', setHertsmere)}
+                numberPlaceholder="e.g. HBC-12345"
               />
 
               {/* Summary */}
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2 mt-2">
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Summary</p>
                 <SummaryRow label="Name" value={fullName} />
                 {phone && <SummaryRow label="Phone" value={phone} />}
                 <SummaryRow label="Vehicle" value={CAR_LABELS[carType]} />
+                <SummaryRow label="Photos" value={`Outside ✓  Inside ✓`} />
                 {dvla.number && <SummaryRow label="DVLA" value={dvla.number} />}
-                {tfl.number && <SummaryRow label="TfL" value={tfl.number} />}
-                {hertz.number && <SummaryRow label="Hertz" value={hertz.number} />}
+                {tflDriver.number && <SummaryRow label="TfL Driver" value={tflDriver.number} />}
+                {tflVehicle.number && <SummaryRow label="TfL Vehicle" value={tflVehicle.number} />}
+                {hertsmere.number && <SummaryRow label="Hertsmere" value={hertsmere.number} />}
               </div>
             </div>
           )}
@@ -338,19 +389,52 @@ export function DriverOnboardingClient({
   )
 }
 
-/* ── Reusable licence section ─────────────────────────────────────────────── */
-function LicenceSection({
-  title, icon, badge, state, onChange, onPhotoClick, uploading, inputRef, onFileChange, numberPlaceholder,
-}: {
-  title: string
-  icon: string
-  badge?: string
+/* ── Vehicle photo slot ─────────────────────────────────────────────────── */
+function VehiclePhotoSlot({ label, required, hint, url, uploading, onUpload, onClear }: {
+  label: string; required?: boolean; hint: string
+  url: string; uploading: boolean
+  onUpload: () => void; onClear: () => void
+}) {
+  return (
+    <div className="border border-gray-200 rounded-xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <span className="text-sm font-semibold text-gray-800">{label}</span>
+          {required && <span className="ml-1 text-red-500 text-xs">*</span>}
+          <p className="text-xs text-gray-400 mt-0.5">{hint}</p>
+        </div>
+        {url && (
+          <button type="button" onClick={onClear} className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center">
+            <X className="w-3 h-3 text-red-500" />
+          </button>
+        )}
+      </div>
+      {url ? (
+        <img src={url} alt={label} className="w-full h-32 object-cover rounded-lg border border-gray-200" />
+      ) : (
+        <button type="button" onClick={onUpload} disabled={uploading}
+          className="w-full h-32 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50">
+          {uploading
+            ? <span className="text-xs text-gray-400">Uploading…</span>
+            : <><Upload className="w-5 h-5 text-gray-300" /><span className="text-xs text-gray-400">Tap to upload</span></>
+          }
+        </button>
+      )}
+    </div>
+  )
+}
+
+/* ── Licence section ────────────────────────────────────────────────────── */
+function LicenceSection({ title, icon, badge, state, onChange, uploadKey, frontRef, backRef, uploading, onFrontFile, onBackFile, numberPlaceholder }: {
+  title: string; icon: string; badge?: string
   state: LicenceState
   onChange: (s: LicenceState) => void
-  onPhotoClick: () => void
-  uploading: boolean
-  inputRef: React.RefObject<HTMLInputElement | null>
-  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  uploadKey: string
+  frontRef: React.RefObject<HTMLInputElement | null>
+  backRef: React.RefObject<HTMLInputElement | null>
+  uploading: string | null
+  onFrontFile: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onBackFile: (e: React.ChangeEvent<HTMLInputElement>) => void
   numberPlaceholder: string
 }) {
   return (
@@ -375,27 +459,54 @@ function LicenceSection({
         </div>
       </div>
 
-      {/* Photo upload */}
-      <div className="flex items-center gap-3">
-        {state.photoUrl
-          ? <div className="relative">
-              <img src={state.photoUrl} alt="Licence" className="w-20 h-14 object-cover rounded-lg border border-gray-200" />
-              <button type="button" onClick={() => onChange({ ...state, photoUrl: '' })}
-                className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center">
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </div>
-          : <div className="w-20 h-14 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center">
-              <FileText className="w-5 h-5 text-gray-300" />
-            </div>
-        }
-        <button type="button" onClick={onPhotoClick} disabled={uploading}
-          className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50">
-          <Upload className="w-3 h-3" />
-          {uploading ? 'Uploading…' : state.photoUrl ? 'Replace' : 'Upload Photo'}
-        </button>
-        <input ref={inputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={onFileChange} />
+      {/* Front + Back photos */}
+      <div className="grid grid-cols-2 gap-3">
+        <PhotoSlot
+          label="Front"
+          url={state.photoFront}
+          uploading={uploading === `${uploadKey}-front`}
+          onUpload={() => frontRef.current?.click()}
+          onClear={() => onChange({ ...state, photoFront: '' })}
+        />
+        <input ref={frontRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={onFrontFile} />
+
+        <PhotoSlot
+          label="Back"
+          url={state.photoBack}
+          uploading={uploading === `${uploadKey}-back`}
+          onUpload={() => backRef.current?.click()}
+          onClear={() => onChange({ ...state, photoBack: '' })}
+        />
+        <input ref={backRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={onBackFile} />
       </div>
+    </div>
+  )
+}
+
+function PhotoSlot({ label, url, uploading, onUpload, onClear }: {
+  label: string; url: string; uploading: boolean
+  onUpload: () => void; onClear: () => void
+}) {
+  return (
+    <div>
+      <p className="text-xs text-gray-500 mb-1.5">{label}</p>
+      {url ? (
+        <div className="relative">
+          <img src={url} alt={label} className="w-full h-20 object-cover rounded-lg border border-gray-200" />
+          <button type="button" onClick={onClear}
+            className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center">
+            <X className="w-2.5 h-2.5" />
+          </button>
+        </div>
+      ) : (
+        <button type="button" onClick={onUpload} disabled={uploading}
+          className="w-full h-20 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-1 hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50">
+          {uploading
+            ? <span className="text-[10px] text-gray-400">…</span>
+            : <><FileText className="w-4 h-4 text-gray-300" /><span className="text-[10px] text-gray-400">Upload</span></>
+          }
+        </button>
+      )}
     </div>
   )
 }
@@ -403,7 +514,7 @@ function LicenceSection({
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-2 text-sm">
-      <span className="text-gray-400 w-16 flex-shrink-0">{label}</span>
+      <span className="text-gray-400 w-20 flex-shrink-0">{label}</span>
       <span className="text-gray-700 font-medium">{value}</span>
     </div>
   )

@@ -1,10 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { MapPin, Clock, Car, Send, CheckCircle2, AlertCircle, Star, Globe, Building2, MessageSquare, ArrowRight, X, Info, Calendar, Repeat, PoundSterling } from 'lucide-react'
+import { MapPin, Clock, Car, Send, CheckCircle2, AlertCircle, Star, Globe, Building2, MessageSquare, X, Info, Calendar, Repeat, PoundSterling, Route } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { carTypeLabel, formatDate, formatCurrency } from '@/lib/utils'
 import { ChatModal } from '@/components/ui/ChatModal'
+
+function haversine(lat1?: number | null, lng1?: number | null, lat2?: number | null, lng2?: number | null): number | null {
+  if (!lat1 || !lng1 || !lat2 || !lng2) return null
+  const R = 3958.8
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+}
 
 interface Job {
   id: string
@@ -13,6 +22,10 @@ interface Job {
   end_time?: string | null
   pickup_address: string
   dropoff_address: string
+  pickup_lat?: number | null
+  pickup_lng?: number | null
+  dropoff_lat?: number | null
+  dropoff_lng?: number | null
   route_legs?: string[]
   preferred_car_type: string | null
   preferred_car_model?: string | null
@@ -151,6 +164,7 @@ export function AvailableJobsClient({
     const app = getApplication(job.id)
     const matchingVehicles = getMatchingVehicles(job)
     const isFreelancer = job._jobType === 'freelancer'
+    const miles = haversine(job.pickup_lat, job.pickup_lng, job.dropoff_lat, job.dropoff_lng)
 
     return (
       <div className="bg-white rounded-xl border border-gray-200 transition-all hover:shadow-sm">
@@ -178,6 +192,12 @@ export function AvailableJobsClient({
               <Clock className="w-3.5 h-3.5" />
               {formatDate(job.job_date)} at {job.job_time}
             </span>
+            {miles !== null && (
+              <span className="flex items-center gap-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
+                <Route className="w-3 h-3" />
+                {miles.toFixed(1)} mi
+              </span>
+            )}
             {job.preferred_car_type && (
               <span className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">
                 <Car className="w-3 h-3" />

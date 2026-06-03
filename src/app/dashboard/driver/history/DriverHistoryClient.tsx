@@ -1,13 +1,26 @@
 'use client'
 
 import { useState } from 'react'
-import { MapPin, Calendar, Star, Clock, CheckCircle2, Wallet, Search } from 'lucide-react'
+import { MapPin, Calendar, Star, Clock, CheckCircle2, Wallet, Search, Route } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
+
+function haversine(lat1?: number | null, lng1?: number | null, lat2?: number | null, lng2?: number | null): number | null {
+  if (!lat1 || !lng1 || !lat2 || !lng2) return null
+  const R = 3958.8
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+}
 
 interface HistoryJob {
   id: string
   pickup_address: string
   dropoff_address: string
+  pickup_lat?: number | null
+  pickup_lng?: number | null
+  dropoff_lat?: number | null
+  dropoff_lng?: number | null
   job_date: string
   job_time: string
   price: number
@@ -99,6 +112,7 @@ export function DriverHistoryClient({ jobs, reviewMap }: Props) {
             const review = reviewMap[job.id]
             const isPaid = job.payment_status === 'paid'
             const isAwaiting = job.status === 'awaiting_confirmation'
+            const miles = haversine(job.pickup_lat, job.pickup_lng, job.dropoff_lat, job.dropoff_lng)
 
             return (
               <div key={job.id} className="bg-white rounded-xl border border-gray-200 p-4">
@@ -114,6 +128,11 @@ export function DriverHistoryClient({ jobs, reviewMap }: Props) {
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" /> {formatDate(job.job_date)} {job.job_time}
                       </span>
+                      {miles !== null && (
+                        <span className="flex items-center gap-1">
+                          <Route className="w-3 h-3" /> {miles.toFixed(1)} mi
+                        </span>
+                      )}
                     </div>
                     {/* Rating received */}
                     {review && (

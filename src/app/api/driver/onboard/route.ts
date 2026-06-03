@@ -8,10 +8,21 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const {
-    full_name, phone, car_type, licence_number, licence_expiry, photo_url,
-    tfl_licence_number, tfl_licence_expiry, tfl_licence_photo,
-    hertz_licence_number, hertz_licence_expiry, hertz_licence_photo,
-    dvla_licence_photo,
+    full_name, phone, car_type, photo_url,
+    // Vehicle
+    vehicle_photo_outside, vehicle_photo_inside,
+    // DVLA
+    licence_number, licence_expiry,
+    dvla_photo_front, dvla_photo_back,
+    // TFL Driver
+    tfl_licence_number, tfl_licence_expiry,
+    tfl_driver_photo_front, tfl_driver_photo_back,
+    // TFL Vehicle
+    tfl_vehicle_number, tfl_vehicle_expiry,
+    tfl_vehicle_photo_front, tfl_vehicle_photo_back,
+    // Hertsmere
+    hertsmere_number, hertsmere_expiry,
+    hertsmere_photo_front, hertsmere_photo_back,
   } = await req.json()
 
   if (!full_name?.trim()) return NextResponse.json({ error: 'Full name is required' }, { status: 400 })
@@ -25,16 +36,30 @@ export async function POST(req: Request) {
       full_name: full_name.trim(),
       phone: phone || null,
       car_type: car_type || 'saloon',
-      licence_number: licence_number || null,
-      licence_expiry: licence_expiry || null,
       photo_url: photo_url || null,
-      tfl_licence_number: tfl_licence_number || null,
-      tfl_licence_expiry: tfl_licence_expiry || null,
-      tfl_licence_photo: tfl_licence_photo || null,
-      hertz_licence_number: hertz_licence_number || null,
-      hertz_licence_expiry: hertz_licence_expiry || null,
-      hertz_licence_photo: hertz_licence_photo || null,
-      dvla_licence_photo: dvla_licence_photo || null,
+      // Vehicle
+      vehicle_photo_outside: vehicle_photo_outside || null,
+      vehicle_photo_inside:  vehicle_photo_inside  || null,
+      // DVLA
+      licence_number:   licence_number  || null,
+      licence_expiry:   licence_expiry  || null,
+      dvla_photo_front: dvla_photo_front || null,
+      dvla_photo_back:  dvla_photo_back  || null,
+      // TFL Driver
+      tfl_licence_number:     tfl_licence_number     || null,
+      tfl_licence_expiry:     tfl_licence_expiry     || null,
+      tfl_driver_photo_front: tfl_driver_photo_front || null,
+      tfl_driver_photo_back:  tfl_driver_photo_back  || null,
+      // TFL Vehicle
+      tfl_vehicle_number:      tfl_vehicle_number      || null,
+      tfl_vehicle_expiry:      tfl_vehicle_expiry      || null,
+      tfl_vehicle_photo_front: tfl_vehicle_photo_front || null,
+      tfl_vehicle_photo_back:  tfl_vehicle_photo_back  || null,
+      // Hertsmere
+      hertsmere_number:      hertsmere_number      || null,
+      hertsmere_expiry:      hertsmere_expiry      || null,
+      hertsmere_photo_front: hertsmere_photo_front || null,
+      hertsmere_photo_back:  hertsmere_photo_back  || null,
     }, { onConflict: 'id' }),
   ])
 

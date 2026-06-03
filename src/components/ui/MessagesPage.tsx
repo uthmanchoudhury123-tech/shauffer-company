@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { MessageSquare, Send, Search, ArrowLeft } from 'lucide-react'
+import { MessageSquare, Send, Search, ArrowLeft, ExternalLink } from 'lucide-react'
 
 interface Message {
   id: string
@@ -234,35 +235,39 @@ export function MessagesPage({ currentUserId, currentUserName }: Props) {
             </div>
           ) : (
             filtered.map(conv => (
-              <button
+              <div
                 key={conv.partnerId}
-                onClick={() => setSelected(conv)}
-                className={`w-full flex items-start gap-3 px-4 py-3.5 border-b border-gray-50 transition-colors text-left
+                className={`w-full flex items-start gap-3 px-4 py-3.5 border-b border-gray-50 transition-colors
                   ${selected?.partnerId === conv.partnerId ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
               >
                 {/* Avatar */}
-                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white font-semibold text-sm">
-                  {conv.partnerName.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
-                      {conv.partnerName}
-                    </p>
-                    <span className="text-[11px] text-gray-400 flex-shrink-0">{formatTime(conv.lastTime)}</span>
+                <button onClick={() => setSelected(conv)} className="flex items-start gap-3 flex-1 min-w-0 text-left">
+                  <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white font-semibold text-sm">
+                    {conv.partnerName.charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex items-center justify-between gap-2 mt-0.5">
-                    <p className={`text-xs truncate ${conv.unreadCount > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
-                      {conv.lastMessage}
-                    </p>
-                    {conv.unreadCount > 0 && (
-                      <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                        {conv.unreadCount > 9 ? '9+' : conv.unreadCount}
-                      </span>
-                    )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
+                        {conv.partnerName}
+                      </p>
+                      <span className="text-[11px] text-gray-400 flex-shrink-0">{formatTime(conv.lastTime)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      <p className={`text-xs truncate ${conv.unreadCount > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
+                        {conv.lastMessage}
+                      </p>
+                      {conv.unreadCount > 0 && (
+                        <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                          {conv.unreadCount > 9 ? '9+' : conv.unreadCount}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
+                <Link href={`/dashboard/driver/view/${conv.partnerId}`} className="flex-shrink-0 p-1.5 text-gray-300 hover:text-blue-500 transition-colors mt-1" title="View profile">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </Link>
+              </div>
             ))
           )}
         </div>
@@ -292,10 +297,16 @@ export function MessagesPage({ currentUserId, currentUserName }: Props) {
               <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
                 {selected.partnerName.charAt(0).toUpperCase()}
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="font-semibold text-gray-900 text-sm">{selected.partnerName}</p>
                 <p className="text-xs text-gray-400">Direct message</p>
               </div>
+              <Link
+                href={`/dashboard/driver/view/${selected.partnerId}`}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 hover:text-blue-600 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors flex-shrink-0"
+              >
+                <ExternalLink className="w-3 h-3" /> View Profile
+              </Link>
             </div>
 
             {/* Messages */}
