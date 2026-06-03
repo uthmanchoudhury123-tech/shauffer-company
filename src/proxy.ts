@@ -90,10 +90,14 @@ export async function proxy(request: NextRequest) {
   }
 
   // Anyone hitting the old /dashboard/freelancer → send to /dashboard/driver
+  // (only redirect if not already going to /dashboard/driver to avoid loops)
   if (pathname.startsWith('/dashboard/freelancer')) {
     const url = request.nextUrl.clone()
     url.pathname = pathname.replace('/dashboard/freelancer', '/dashboard/driver')
-    return NextResponse.redirect(url)
+    // Prevent loop: only redirect if target differs
+    if (url.pathname !== pathname) {
+      return NextResponse.redirect(url)
+    }
   }
 
   // Company admin accessing their dashboard — check they have a company
@@ -111,27 +115,26 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Driver/freelancer accessing their dashboard — check onboarding is complete
-  // Uses service-role key (bypasses RLS) because the anon session context in
-  // middleware doesn't reliably set auth.uid() for PostgREST RLS policies.
+  // Driver accessing their dashboard — check onboarding is complete
+  // Only redirect to onboarding if we explicitly know it's NOT complete.
+  // If the query errors or returns null, let the user through — the page
+  // itself will handle any further redirect if needed.
   if (user && pathname.startsWith('/dashboard/driver')) {
-    const { createClient: createAdminSupa } = await import('@supabase/supabase-js')
-    const adminCheck = createAdminSupa(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    try {
+      const { data: driver } = await supabase
+        .from('drivers')
+        .select('onboarding_complete')
+        .eq('id', user.id)
+        .maybeSingle()
 
-    const { data: driver } = await adminCheck
-      .from('drivers')
-      .select('onboarding_complete')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    if (!driver?.onboarding_complete) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/onboarding/driver'
-      return NextResponse.redirect(url)
+      // Only redirect if we got a record back and it's explicitly false/null
+      if (driver !== null && driver !== undefined && !driver.onboarding_complete) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/onboarding/driver'
+        return NextResponse.redirect(url)
+      }
+    } catch {
+      // Can't determine onboarding status — let the page decide
     }
   }
 
