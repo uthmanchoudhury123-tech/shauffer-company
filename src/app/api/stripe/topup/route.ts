@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { stripe } from '@/lib/stripe'
+import Stripe from 'stripe'
+
+const platformStripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2026-03-25.dahlia',
+})
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -32,7 +36,7 @@ export async function POST(req: Request) {
       .eq('id', user.id)
       .single()
 
-    const customer = await stripe.customers.create({
+    const customer = await platformStripe.customers.create({
       email: profile?.email ?? user.email,
       name: profile?.full_name ?? undefined,
       metadata: { supabase_id: user.id },
@@ -48,7 +52,7 @@ export async function POST(req: Request) {
   const origin = req.headers.get('origin') ?? 'https://shauffer-company.vercel.app'
 
   // Create Stripe Checkout Session
-  const session = await stripe.checkout.sessions.create({
+  const session = await platformStripe.checkout.sessions.create({
     customer: customerId,
     payment_method_types: ['card'],
     line_items: [{

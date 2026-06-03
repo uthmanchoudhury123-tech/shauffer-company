@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { stripe } from '@/lib/stripe'
+import Stripe from 'stripe'
+
+// Platform-level Stripe — no stripeAccount so we can manage Connect accounts
+const platformStripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2026-03-25.dahlia',
+})
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -33,7 +38,7 @@ export async function POST(req: Request) {
 
     try {
       // Create Stripe Express account
-      const account = await stripe.accounts.create({
+      const account = await platformStripe.accounts.create({
         type: 'express',
         country: 'GB',
         email: profile?.email ?? user.email ?? undefined,
@@ -58,7 +63,7 @@ export async function POST(req: Request) {
   }
 
   // Create onboarding link
-  const accountLink = await stripe.accountLinks.create({
+  const accountLink = await platformStripe.accountLinks.create({
     account: connectId,
     refresh_url: `${origin}${returnPath}?connect=refresh`,
     return_url:  `${origin}${returnPath}?connect=success`,
