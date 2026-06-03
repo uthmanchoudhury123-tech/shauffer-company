@@ -55,13 +55,19 @@ export default async function AdminOverviewPage() {
   const completedJobs = jobs?.filter(j => j.status === 'completed') ?? []
   const completedToday = completedJobs.filter(j => j.job_date === today).length
 
-  // Revenue calculations
-  const revenueToday   = completedJobs.filter(j => j.job_date === today).reduce((s, j) => s + (j.price ?? 0), 0)
-  const revenueWeek    = completedJobs.filter(j => j.job_date >= weekStart).reduce((s, j) => s + (j.price ?? 0), 0)
-  const revenueMonth   = completedJobs.filter(j => j.job_date >= monthStart).reduce((s, j) => s + (j.price ?? 0), 0)
-  const revenueAllTime = completedJobs.reduce((s, j) => s + (j.price ?? 0), 0)
+  // Revenue = client_price (what company charges), Cost = price (paid to driver)
+  const clientPrice = (j: any) => j.client_price ?? 0
+  const driverCost  = (j: any) => j.price ?? 0
+  const profit      = (j: any) => clientPrice(j) - driverCost(j)
 
-  // Top earners by driver
+  const revenueToday    = completedJobs.filter(j => j.job_date === today).reduce((s, j) => s + clientPrice(j), 0)
+  const revenueWeek     = completedJobs.filter(j => j.job_date >= weekStart).reduce((s, j) => s + clientPrice(j), 0)
+  const revenueMonth    = completedJobs.filter(j => j.job_date >= monthStart).reduce((s, j) => s + clientPrice(j), 0)
+  const revenueAllTime  = completedJobs.reduce((s, j) => s + clientPrice(j), 0)
+  const profitAllTime   = completedJobs.reduce((s, j) => s + profit(j), 0)
+  const costAllTime     = completedJobs.reduce((s, j) => s + driverCost(j), 0)
+
+  // Top earners by driver (driver cost = what they earn)
   const earningsByDriver: Record<string, { name: string; total: number; jobs: number }> = {}
   for (const job of completedJobs) {
     if (!job.driver_id) continue
@@ -69,21 +75,23 @@ export default async function AdminOverviewPage() {
     if (!earningsByDriver[job.driver_id]) {
       earningsByDriver[job.driver_id] = { name: driver?.full_name ?? 'Unknown', total: 0, jobs: 0 }
     }
-    earningsByDriver[job.driver_id].total += job.price ?? 0
+    earningsByDriver[job.driver_id].total += driverCost(job)
     earningsByDriver[job.driver_id].jobs += 1
   }
   const topEarners = Object.values(earningsByDriver)
     .sort((a, b) => b.total - a.total)
     .slice(0, 5)
 
-  // Last 6 months revenue
+  // Last 6 months revenue + profit
   const monthlyRevenue = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(); d.setMonth(d.getMonth() - (5 - i))
     const label = d.toLocaleDateString('en-GB', { month: 'short' })
     const ms = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]
     const me = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]
-    const total = completedJobs.filter(j => j.job_date >= ms && j.job_date <= me).reduce((s, j) => s + (j.price ?? 0), 0)
-    return { label, total }
+    const monthJobs = completedJobs.filter(j => j.job_date >= ms && j.job_date <= me)
+    const total       = monthJobs.reduce((s, j) => s + clientPrice(j), 0)
+    const totalProfit = monthJobs.reduce((s, j) => s + profit(j), 0)
+    return { label, total, profit: totalProfit }
   })
   const maxMonthly = Math.max(...monthlyRevenue.map(m => m.total), 1)
 
@@ -140,7 +148,7 @@ export default async function AdminOverviewPage() {
           { label: "Today's Revenue",  value: revenueToday,   sub: `${completedJobs.filter(j=>j.job_date===today).length} jobs` },
           { label: 'This Week',        value: revenueWeek,    sub: `${completedJobs.filter(j=>j.job_date>=weekStart).length} jobs` },
           { label: 'This Month',       value: revenueMonth,   sub: `${completedJobs.filter(j=>j.job_date>=monthStart).length} jobs` },
-          { label: 'All Time',         value: revenueAllTime, sub: `${completedJobs.length} completed` },
+          { label: 'All Time Revenue', value: revenueAllTime, sub: `${completedJobs.length} completed` },
         ].map(({ label, value, sub }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-1">
@@ -153,6 +161,29 @@ export default async function AdminOverviewPage() {
         ))}
       </div>
 
+      {/* Profit & Cost strip */}
+      {revenueAllTime > 0 && (
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-green-50 rounded-xl border border-green-100 p-4">
+            <p className="text-xs font-medium text-green-700 mb-1">Total Profit</p>
+            <p className="text-2xl font-bold text-green-800">{formatCurrency(profitAllTime)}</p>
+            <p className="text-xs text-green-600 mt-0.5">
+              {revenueAllTime > 0 ? `${Math.round((profitAllTime / revenueAllTime) * 100)}% margin` : '—'}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-xs font-medium text-gray-500 mb-1">Driver Costs</p>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(costAllTime)}</p>
+            <p className="text-xs text-gray-400 mt-0.5">Total paid to drivers</p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-xs font-medium text-gray-500 mb-1">Jobs Without Client Price</p>
+            <p className="text-2xl font-bold text-gray-900">{completedJobs.filter(j => !(j as any).client_price).length}</p>
+            <p className="text-xs text-orange-500 mt-0.5">Add client prices for accurate P&L</p>
+          </div>
+        </div>
+      )}
+
       {/* Revenue Chart + Top Earners */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         {/* Monthly bar chart */}
@@ -163,17 +194,24 @@ export default async function AdminOverviewPage() {
           {revenueAllTime === 0 ? (
             <p className="text-sm text-gray-400 text-center py-6">No completed jobs yet</p>
           ) : (
-            <div className="flex items-end gap-2 h-32">
-              {monthlyRevenue.map(({ label, total }) => (
-                <div key={label} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-xs text-gray-500 font-medium">{total > 0 ? formatCurrency(total).replace('£','£') : ''}</span>
-                  <div className="w-full rounded-t-md bg-blue-100 relative" style={{ height: `${Math.max((total / maxMonthly) * 80, total > 0 ? 4 : 0)}px` }}>
-                    <div className="absolute inset-0 rounded-t-md bg-blue-500 opacity-80" />
+            <>
+              <div className="flex items-center gap-4 mb-3">
+                <span className="flex items-center gap-1.5 text-xs text-gray-500"><span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block" /> Revenue</span>
+                <span className="flex items-center gap-1.5 text-xs text-gray-500"><span className="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block" /> Profit</span>
+              </div>
+              <div className="flex items-end gap-2 h-32">
+                {monthlyRevenue.map(({ label, total, profit: p }) => (
+                  <div key={label} className="flex-1 flex flex-col items-center gap-1">
+                    {total > 0 && <span className="text-xs text-gray-500 font-medium">{formatCurrency(total)}</span>}
+                    <div className="w-full flex gap-0.5 items-end" style={{ height: `${Math.max((total / maxMonthly) * 80, total > 0 ? 4 : 0)}px` }}>
+                      <div className="flex-1 h-full rounded-tl-md bg-blue-500 opacity-80" />
+                      {p > 0 && <div className="flex-1 rounded-tr-md bg-green-500" style={{ height: `${Math.max((p / total) * 100, 8)}%` }} />}
+                    </div>
+                    <span className="text-xs text-gray-400">{label}</span>
                   </div>
-                  <span className="text-xs text-gray-400">{label}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
 

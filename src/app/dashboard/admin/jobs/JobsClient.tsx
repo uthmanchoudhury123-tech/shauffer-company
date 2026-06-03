@@ -102,6 +102,7 @@ const emptyForm = {
   visibility: 'company' as 'company' | 'platform' | 'direct',
   target_drivers: [] as DriverSearchResult[],
   allow_counter_offer: true,
+  client_price: '',
 }
 
 function getLegs(job: Job): { from: string; to: string }[] {
@@ -300,6 +301,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       visibility: form.visibility,
       target_driver_ids: isDirected ? form.target_drivers.map(d => d.id) : [],
       allow_counter_offer: form.allow_counter_offer,
+      client_price: form.client_price ? Number(form.client_price) : null,
     }
 
     const { data, error: err } = await supabase
@@ -536,6 +538,21 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                           {jobIsDaily && (job as any).price_type === 'per_hour' && <span className="font-normal text-gray-400">/hr</span>}
                           {jobIsDaily && (job as any).price_type === 'per_day'  && <span className="font-normal text-gray-400">/day</span>}
                         </span>
+                        {(job as any).client_price > 0 && (
+                          <>
+                            <span className="text-green-600 font-semibold">
+                              → {formatCurrency((job as any).client_price)}
+                              <span className="text-green-500 font-normal"> client</span>
+                            </span>
+                            <span className={`font-semibold px-1.5 py-0.5 rounded text-xs ${
+                              (job as any).client_price - job.price >= 0
+                                ? 'bg-green-50 text-green-700'
+                                : 'bg-red-50 text-red-600'
+                            }`}>
+                              {(job as any).client_price - job.price >= 0 ? '+' : ''}{formatCurrency((job as any).client_price - job.price)} profit
+                            </span>
+                          </>
+                        )}
                         {job.preferred_car_model && (
                           <span className="text-gray-500 italic">{job.preferred_car_model}</span>
                         )}
@@ -824,8 +841,9 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                {isDaily && form.price_type === 'per_hour' ? 'Rate per Hour (£)' :
-                 isDaily && form.price_type === 'per_day'  ? 'Rate per Day (£)' : 'Price (£)'}
+                {isDaily && form.price_type === 'per_hour' ? 'Driver Rate per Hour (£)' :
+                 isDaily && form.price_type === 'per_day'  ? 'Driver Rate per Day (£)' : 'Driver Cost (£)'}
+                <span className="ml-1.5 text-gray-400 font-normal">— paid to driver</span>
               </label>
               <input
                 type="number" min="0" step="0.01"
@@ -846,6 +864,29 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                 {CAR_TYPES.map(t => <option key={t} value={t}>{carTypeLabel(t)}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* Client price (private — revenue tracking) */}
+          <div className="bg-green-50 border border-green-100 rounded-lg p-3">
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="text-xs font-semibold text-green-800">Client Charge (£)</span>
+              <span className="text-xs text-green-600 bg-green-100 px-1.5 py-0.5 rounded font-medium">Private — not visible to drivers</span>
+            </div>
+            <input
+              type="number" min="0" step="0.01"
+              className="w-full px-3 py-2 border border-green-200 bg-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              value={form.client_price}
+              onChange={e => setForm(f => ({ ...f, client_price: e.target.value }))}
+              placeholder="Amount you charge the client"
+            />
+            {form.client_price && form.price && Number(form.client_price) > 0 && Number(form.price) > 0 && (
+              <p className="text-xs mt-1.5 text-green-700 font-medium">
+                Profit: £{(Number(form.client_price) - Number(form.price)).toFixed(2)}
+                <span className="text-green-500 ml-1">
+                  ({Math.round(((Number(form.client_price) - Number(form.price)) / Number(form.client_price)) * 100)}% margin)
+                </span>
+              </p>
+            )}
           </div>
 
           {/* Car Model — dropdown based on selected category */}
