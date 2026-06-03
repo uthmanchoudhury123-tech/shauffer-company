@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { UserRole } from '@/types'
 
+// Company Driver is intentionally excluded — they join ONLY via company invite link
 const ROLE_OPTIONS: { value: UserRole; label: string; description: string }[] = [
   {
     value: 'company_admin',
@@ -13,14 +14,9 @@ const ROLE_OPTIONS: { value: UserRole; label: string; description: string }[] = 
     description: 'Manage your fleet, drivers, and jobs',
   },
   {
-    value: 'company_driver',
-    label: 'Company Driver',
-    description: 'View and manage your assigned jobs',
-  },
-  {
     value: 'freelance_driver',
     label: 'Freelance Driver',
-    description: 'Work independently across companies',
+    description: 'Work independently across multiple companies',
   },
 ]
 
@@ -186,6 +182,12 @@ export function SignupClient({ inviteToken, inviteEmail }: Props) {
                       <p className="text-xs text-gray-500 mt-0.5">{option.description}</p>
                     </button>
                   ))}
+                </div>
+                {/* Company Driver note */}
+                <div className="mt-3 px-3 py-2.5 bg-gray-800/60 border border-gray-700/60 rounded-lg">
+                  <p className="text-xs text-gray-400">
+                    🔒 <span className="text-gray-300 font-medium">Company Driver?</span> You can only join via an invitation link sent by your company admin.
+                  </p>
                 </div>
               </div>
             )}
