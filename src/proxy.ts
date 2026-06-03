@@ -14,7 +14,7 @@ const PUBLIC_ROUTES = ['/auth/login', '/auth/signup', '/auth/reset-password', '/
 const ROLE_DASHBOARD: Record<string, string> = {
   company_admin:    '/dashboard/admin',
   company_driver:   '/dashboard/driver',
-  freelance_driver: '/dashboard/freelancer',
+  freelance_driver: '/dashboard/driver',
   super_admin:      '/dashboard/superadmin',
 }
 
@@ -107,7 +107,7 @@ export async function proxy(request: NextRequest) {
   // Driver/freelancer accessing their dashboard — check onboarding is complete
   // Uses service-role key (bypasses RLS) because the anon session context in
   // middleware doesn't reliably set auth.uid() for PostgREST RLS policies.
-  if (user && (pathname.startsWith('/dashboard/driver') || pathname.startsWith('/dashboard/freelancer'))) {
+  if (user && pathname.startsWith('/dashboard/driver')) {
     const { createClient: createAdminSupa } = await import('@supabase/supabase-js')
     const adminCheck = createAdminSupa(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

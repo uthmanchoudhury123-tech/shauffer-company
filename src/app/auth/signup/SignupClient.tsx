@@ -83,8 +83,6 @@ export function SignupClient({ inviteToken, inviteEmail }: Props) {
       router.push('/dashboard/driver')
     } else if (role === 'company_admin') {
       router.push('/dashboard/admin')
-    } else if (role === 'freelance_driver') {
-      router.push('/dashboard/freelancer')
     } else {
       router.push('/dashboard/driver')
     }
