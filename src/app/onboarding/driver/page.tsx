@@ -27,7 +27,7 @@ export default async function DriverOnboardingPage() {
     .maybeSingle()
 
   if (driver?.onboarding_complete) {
-    redirect(role === 'freelance_driver' ? '/dashboard/freelancer' : '/dashboard/driver')
+    redirect('/dashboard/driver')
   }
 
   return (

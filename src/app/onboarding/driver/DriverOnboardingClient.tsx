@@ -133,7 +133,7 @@ export function DriverOnboardingClient({
       let data: { error?: string } = {}
       try { data = await res.json() } catch { /**/ }
       if (!res.ok) { setError(data.error ?? `Server error (${res.status})`); setSaving(false); return }
-      window.location.href = isFreelancer ? '/dashboard/freelancer' : '/dashboard/driver'
+      window.location.href = '/dashboard/driver'
     } catch {
       setError('Network error — please try again')
       setSaving(false)
