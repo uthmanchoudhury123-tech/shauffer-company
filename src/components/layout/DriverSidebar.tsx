@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { LayoutDashboard, LogOut, X, Car, Briefcase, FileText, User, PoundSterling, MessageSquare, Wallet } from 'lucide-react'
+import { LayoutDashboard, LogOut, X, Car, Briefcase, FileText, User, PoundSterling, MessageSquare, Wallet, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/driver',                label: 'My Jobs',        icon: LayoutDashboard },
   { href: '/dashboard/driver/available-jobs', label: 'Available Jobs', icon: Briefcase },
   { href: '/dashboard/driver/earnings',       label: 'Earnings',       icon: PoundSterling },
+  { href: '/dashboard/driver/history',        label: 'Job History',    icon: History },
   { href: '/dashboard/driver/wallet',         label: 'Wallet',         icon: Wallet },
   { href: '/dashboard/driver/my-vehicles',    label: 'My Vehicles',    icon: Car },
   { href: '/dashboard/driver/messages',       label: 'Messages',       icon: MessageSquare },

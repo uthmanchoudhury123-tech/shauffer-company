@@ -51,7 +51,7 @@ export function DriverDashboardClient({ driverName, driverProfile, jobs: initial
 
   // Job buckets
   const upcomingJobs = jobs.filter(j => j.status === 'assigned')
-  const activeJob = jobs.find(j => j.status === 'in_progress')
+  const activeJob = jobs.find(j => j.status === 'in_progress' || j.status === 'awaiting_confirmation')
   const completedJobs = jobs.filter(j => j.status === 'completed')
 
   // Earnings
@@ -93,11 +93,13 @@ export function DriverDashboardClient({ driverName, driverProfile, jobs: initial
 
   async function updateJobStatus(jobId: string, status: Job['status']) {
     const supabase = createClient()
-    const { data } = await supabase.from('jobs').update({ status }).eq('id', jobId).select().single()
+    // Driver can only mark as awaiting_confirmation (not directly completed)
+    const actualStatus = status === 'completed' ? 'awaiting_confirmation' : status
+    const { data } = await supabase.from('jobs').update({ status: actualStatus }).eq('id', jobId).select().single()
     if (data) {
       setJobs(prev => prev.map(j => j.id === jobId ? data : j))
-      if (status === 'in_progress') await updateAvailability('on_job')
-      if (status === 'completed') {
+      if (actualStatus === 'in_progress') await updateAvailability('on_job')
+      if (actualStatus === 'awaiting_confirmation') {
         const remaining = jobs.filter(j => j.id !== jobId && j.status === 'in_progress')
         if (remaining.length === 0) await updateAvailability('available')
       }
@@ -345,12 +347,18 @@ export function DriverDashboardClient({ driverName, driverProfile, jobs: initial
           </div>
           {activeJob.notes && <p className="text-sm text-blue-200 italic mb-4">"{activeJob.notes}"</p>}
           <div className="flex gap-2">
-            <button
-              onClick={() => updateJobStatus(activeJob.id, 'completed')}
-              className="px-4 py-2 bg-white text-blue-700 rounded-xl text-sm font-bold hover:bg-blue-50"
-            >
-              ✓ Mark Complete
-            </button>
+            {activeJob.status === 'awaiting_confirmation' ? (
+              <span className="px-4 py-2 bg-yellow-400 text-yellow-900 rounded-xl text-sm font-bold flex items-center gap-1.5">
+                <Clock className="w-4 h-4" /> Awaiting Admin Confirmation
+              </span>
+            ) : (
+              <button
+                onClick={() => updateJobStatus(activeJob.id, 'completed')}
+                className="px-4 py-2 bg-white text-blue-700 rounded-xl text-sm font-bold hover:bg-blue-50"
+              >
+                ✓ Mark Complete
+              </button>
+            )}
             <a
               href={`/dashboard/driver/sign?name=Passenger&job=${activeJob.id}`}
               className="px-4 py-2 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-400 flex items-center gap-1.5"

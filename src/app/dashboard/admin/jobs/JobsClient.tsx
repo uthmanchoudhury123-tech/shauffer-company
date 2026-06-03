@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Plus, Briefcase, Search, MapPin, Clock, UserCheck,
   ArrowRight, ChevronDown, ChevronUp, X, Repeat,
-  Building2, Globe, User2, MessageSquare, FileText, CreditCard, Star,
+  Building2, Globe, User2, MessageSquare, FileText, CreditCard, Star, AlertCircle,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
@@ -97,6 +97,9 @@ const emptyForm = {
   preferred_car_type: '' as CarType | '',
   preferred_car_model: '',
   notes: '',
+  client_name: '',
+  client_email: '',
+  client_phone: '',
   driver_id: '',
   open_for_applications: false,
   visibility: 'company' as 'company' | 'platform' | 'direct',
@@ -194,6 +197,32 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
 
   // Pay driver
   const [payingJob, setPayingJob] = useState<string | null>(null)
+  const [confirmingJob, setConfirmingJob] = useState<string | null>(null)
+  const [paidJobIds, setPaidJobIds] = useState<Set<string>>(new Set())
+
+  async function confirmAndPay(jobId: string, hasDriver: boolean) {
+    setConfirmingJob(jobId)
+    // First confirm the job (mark completed)
+    const supabase = createClient()
+    await supabase.from('jobs').update({ status: 'completed' }).eq('id', jobId)
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'completed' as JobStatus } : j))
+    // Then pay if there's a driver
+    if (hasDriver) {
+      const res = await fetch('/api/stripe/jobs/pay-driver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setPaidJobIds(prev => new Set([...prev, jobId]))
+      } else {
+        alert(json.error ?? 'Job confirmed but payment failed — pay from the Payments page')
+      }
+    }
+    setConfirmingJob(null)
+    router.refresh()
+  }
 
   async function payDriver(jobId: string) {
     setPayingJob(jobId)
@@ -203,10 +232,10 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       body: JSON.stringify({ jobId }),
     })
     const json = await res.json()
-    if (res.ok && json.url) {
-      window.location.href = json.url
+    if (res.ok) {
+      setPaidJobIds(prev => new Set([...prev, jobId]))
     } else {
-      alert(json.error ?? 'Failed to start payment')
+      alert(json.error ?? 'Failed to pay driver')
     }
     setPayingJob(null)
   }
@@ -225,6 +254,8 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
     const matchStatus = statusFilter === 'all' || j.status === statusFilter
     return matchSearch && matchStatus
   })
+
+  const awaitingJobs = jobs.filter(j => j.status === 'awaiting_confirmation')
 
   // Route legs helpers
   function updateLeg(idx: number, value: string) {
@@ -302,6 +333,9 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       target_driver_ids: isDirected ? form.target_drivers.map(d => d.id) : [],
       allow_counter_offer: form.allow_counter_offer,
       client_price: form.client_price ? Number(form.client_price) : null,
+      client_name:  form.client_name  || null,
+      client_email: form.client_email || null,
+      client_phone: form.client_phone || null,
     }
 
     const { data, error: err } = await supabase
@@ -452,10 +486,30 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
           <option value="pending">Pending</option>
           <option value="assigned">Assigned</option>
           <option value="in_progress">In Progress</option>
+          <option value="awaiting_confirmation">Awaiting Confirmation</option>
           <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
         </select>
       </div>
+
+      {/* Awaiting confirmation banner */}
+      {awaitingJobs.length > 0 && (
+        <div className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-800">
+              {awaitingJobs.length} job{awaitingJobs.length !== 1 ? 's' : ''} awaiting your confirmation
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">Driver{awaitingJobs.length !== 1 ? 's have' : ' has'} marked {awaitingJobs.length !== 1 ? 'these jobs' : 'this job'} complete — confirm and pay below</p>
+          </div>
+          <button
+            onClick={() => setStatusFilter('awaiting_confirmation')}
+            className="text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            View
+          </button>
+        </div>
+      )}
 
       {/* Jobs List */}
       {filtered.length === 0 ? (
@@ -568,6 +622,12 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                         </div>
                       )}
 
+                      {(job as any).client_name && (
+                        <p className="mt-1.5 text-xs text-blue-600 font-medium flex items-center gap-1">
+                          <User2 className="w-3 h-3" /> {(job as any).client_name}
+                          {(job as any).client_phone && <span className="text-gray-400 font-normal">· {(job as any).client_phone}</span>}
+                        </p>
+                      )}
                       {job.notes && (
                         <p className="mt-1.5 text-xs text-gray-400 italic">{job.notes}</p>
                       )}
@@ -612,10 +672,19 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                             Complete
                           </button>
                         )}
+                        {job.status === 'awaiting_confirmation' && (
+                          <button
+                            onClick={() => confirmAndPay(job.id, !!job.driver_id)}
+                            disabled={confirmingJob === job.id}
+                            className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-semibold disabled:opacity-50"
+                          >
+                            {confirmingJob === job.id ? '...' : '✓ Confirm & Pay Driver'}
+                          </button>
+                        )}
                         {job.status === 'completed' && (
                           <>
                             <a
-                              href={`/api/jobs/${job.id}/invoice`}
+                              href={`/dashboard/admin/jobs/invoice?job=${job.id}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-lg transition-colors font-medium"
@@ -623,7 +692,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                               <FileText className="w-3 h-3" />
                               Invoice
                             </a>
-                            {job.driver_id && (job as any).payment_status !== 'paid' && (
+                            {job.driver_id && (job as any).payment_status !== 'paid' && !paidJobIds.has(job.id) && (
                               <button
                                 onClick={() => payDriver(job.id)}
                                 disabled={payingJob === job.id}
@@ -633,7 +702,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                                 {payingJob === job.id ? '...' : 'Pay Driver'}
                               </button>
                             )}
-                            {(job as any).payment_status === 'paid' && (
+                            {((job as any).payment_status === 'paid' || paidJobIds.has(job.id)) && (
                               <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-lg font-medium">
                                 ✓ Paid
                               </span>
@@ -1057,6 +1126,43 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
             </div>
           )}
 
+          {/* Client Details */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
+            <p className="text-xs font-semibold text-gray-700">Client Details <span className="font-normal text-gray-400">(for invoicing)</span></p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Client Name</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  value={form.client_name}
+                  onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))}
+                  placeholder="e.g. John Smith"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Client Email</label>
+                <input
+                  type="email"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  value={form.client_email}
+                  onChange={e => setForm(f => ({ ...f, client_email: e.target.value }))}
+                  placeholder="email@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Client Phone</label>
+                <input
+                  type="tel"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  value={form.client_phone}
+                  onChange={e => setForm(f => ({ ...f, client_phone: e.target.value }))}
+                  placeholder="+44 7700 000000"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Notes */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
@@ -1065,7 +1171,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              placeholder="Special instructions, client name, flight number..."
+              placeholder="Special instructions, flight number, meet & greet info..."
             />
           </div>
 

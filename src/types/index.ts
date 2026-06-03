@@ -73,6 +73,7 @@ export interface Driver {
   availability_status: AvailabilityStatus
   driver_category: DriverCategory
   is_verified: boolean
+  plan_tier: 'free' | 'standard' | 'verified'
   rating: number // 0–5
   rating_count: number
   // Live location (updated by driver app)
@@ -84,7 +85,7 @@ export interface Driver {
 
 // ---- Job ----
 
-export type JobStatus = 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled'
+export type JobStatus = 'pending' | 'assigned' | 'in_progress' | 'awaiting_confirmation' | 'completed' | 'cancelled'
 
 export interface Job {
   id: string
@@ -110,6 +111,11 @@ export interface Job {
   preferred_car_type?: CarType
   preferred_car_model?: string | null  // e.g. "Mercedes S Class W223"
   notes?: string
+  // Client info (private — admin only)
+  client_name?: string | null
+  client_email?: string | null
+  client_phone?: string | null
+  client_price?: number | null
   // Status
   status: JobStatus
   driver_id?: string // null until assigned
