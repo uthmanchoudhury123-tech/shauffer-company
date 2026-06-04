@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Plus, Car, Trash2, CheckCircle2, PenLine } from 'lucide-react'
+import { Plus, Car, Trash2, CheckCircle2, Camera, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { carTypeLabel } from '@/lib/utils'
 
@@ -16,11 +16,14 @@ interface Vehicle {
   color: string | null
   car_type: string
   photo_url: string | null
+  photo_outside: string | null
+  photo_inside: string | null
   is_active: boolean
 }
 
 const empty = {
-  make: '', model: '', year: '', registration: '', color: '', car_type: 'saloon', photo_url: ''
+  make: '', model: '', year: '', registration: '', color: '', car_type: 'saloon',
+  photo_outside: '', photo_inside: '',
 }
 
 export function MyVehiclesClient({
@@ -37,38 +40,27 @@ export function MyVehiclesClient({
   const [form, setForm] = useState(empty)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [uploading, setUploading] = useState(false)
+  const [uploadingSlot, setUploadingSlot] = useState<'outside' | 'inside' | null>(null)
   const [uploadError, setUploadError] = useState('')
-  const [photoPreview, setPhotoPreview] = useState('')
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const outsideInputRef = useRef<HTMLInputElement>(null)
+  const insideInputRef  = useRef<HTMLInputElement>(null)
 
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleSlotUpload(e: React.ChangeEvent<HTMLInputElement>, slot: 'outside' | 'inside') {
     const file = e.target.files?.[0]
     if (!file) return
-    setUploading(true)
+    setUploadingSlot(slot)
     setUploadError('')
     const supabase = createClient()
-
-    // Sanitise filename — remove spaces/special chars
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const path = `driver-vehicles/${driverId}/${Date.now()}-${safeName}`
-
-    const { data, error } = await supabase.storage
+    const path = `driver-vehicles/${driverId}/${slot}-${Date.now()}-${safeName}`
+    const { data, error: upErr } = await supabase.storage
       .from('vehicles')
       .upload(path, file, { upsert: true, contentType: file.type })
-
-    if (error) {
-      setUploadError(`Upload failed: ${error.message}`)
-      setUploading(false)
-      return
-    }
-
-    if (data) {
-      const { data: urlData } = supabase.storage.from('vehicles').getPublicUrl(path)
-      setForm(f => ({ ...f, photo_url: urlData.publicUrl }))
-      setPhotoPreview(urlData.publicUrl)
-    }
-    setUploading(false)
+    if (upErr) { setUploadError(`Upload failed: ${upErr.message}`); setUploadingSlot(null); return }
+    const { data: urlData } = supabase.storage.from('vehicles').getPublicUrl(path)
+    setForm(f => ({ ...f, [slot === 'outside' ? 'photo_outside' : 'photo_inside']: urlData.publicUrl }))
+    setUploadingSlot(null)
+    e.target.value = ''
   }
 
   async function handleSave() {
@@ -76,6 +68,8 @@ export function MyVehiclesClient({
       setError('Make, model and registration are required')
       return
     }
+    if (!form.photo_outside) { setError('Please upload an outside photo of the vehicle.'); return }
+    if (!form.photo_inside)  { setError('Please upload an inside photo of the vehicle.'); return }
     setSaving(true)
     setError('')
     const supabase = createClient()
@@ -90,7 +84,9 @@ export function MyVehiclesClient({
         registration: form.registration.toUpperCase(),
         color: form.color || null,
         car_type: form.car_type,
-        photo_url: form.photo_url || null,
+        photo_url: form.photo_outside || null,
+        photo_outside: form.photo_outside || null,
+        photo_inside: form.photo_inside || null,
       })
       .select()
       .single()
@@ -100,7 +96,6 @@ export function MyVehiclesClient({
       setVehicles(v => [data, ...v])
       setShowForm(false)
       setForm(empty)
-      setPhotoPreview('')
     }
     setSaving(false)
   }
@@ -118,6 +113,8 @@ export function MyVehiclesClient({
     setVehicles(v => v.filter(veh => veh.id !== id))
   }
 
+  const canSave = !!form.make && !!form.model && !!form.registration && !!form.photo_outside && !!form.photo_inside
+
   return (
     <div className="p-4 sm:p-6 max-w-3xl">
       <div className="flex items-center justify-between mb-6">
@@ -126,7 +123,7 @@ export function MyVehiclesClient({
           <p className="text-sm text-gray-500 mt-0.5">Register your cars to apply for matching jobs</p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => { setShowForm(true); setForm(empty); setError('') }}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -140,38 +137,103 @@ export function MyVehiclesClient({
           <h2 className="text-sm font-semibold text-gray-800 mb-4">New Vehicle</h2>
           {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
 
-          {/* Photo upload */}
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-gray-600 mb-2">Vehicle Photo</label>
-            <div className="flex items-center gap-4">
-              {photoPreview ? (
-                <img src={photoPreview} alt="Vehicle" className="w-24 h-16 rounded-lg object-cover border border-gray-200" />
-              ) : (
-                <div className="w-24 h-16 rounded-lg bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center">
-                  <Car className="w-6 h-6 text-gray-400" />
-                </div>
-              )}
-              <div className="flex flex-col gap-1">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >
-                  {uploading ? 'Uploading...' : photoPreview ? 'Change Photo' : 'Upload Photo'}
-                </button>
-                {uploadError && <p className="text-xs text-red-500">{uploadError}</p>}
+          {/* Vehicle Photos — Outside + Inside (both required) */}
+          <div className="mb-5">
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Vehicle Photos <span className="text-red-500">*</span>
+            </label>
+            <p className="text-xs text-gray-400 mb-3">
+              Both an outside <em>and</em> inside photo are required before saving.
+            </p>
+
+            {/* Hidden inputs */}
+            <input ref={outsideInputRef} type="file" accept="image/*" className="hidden"
+              onChange={e => handleSlotUpload(e, 'outside')} disabled={!!uploadingSlot} />
+            <input ref={insideInputRef}  type="file" accept="image/*" className="hidden"
+              onChange={e => handleSlotUpload(e, 'inside')}  disabled={!!uploadingSlot} />
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Outside slot */}
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1.5">
+                  Outside <span className="text-red-500">*</span>
+                </p>
+                {form.photo_outside ? (
+                  <div className="relative group aspect-[4/3] rounded-lg overflow-hidden border border-gray-200">
+                    <img src={form.photo_outside} alt="Outside" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, photo_outside: '' }))}
+                      className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    <span className="absolute bottom-1 left-1 text-[9px] font-bold bg-gray-800/70 text-white px-1.5 py-0.5 rounded">
+                      OUTSIDE
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => outsideInputRef.current?.click()}
+                    disabled={!!uploadingSlot}
+                    className="w-full aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-colors flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-blue-500 disabled:opacity-50"
+                  >
+                    {uploadingSlot === 'outside' ? (
+                      <span className="text-[10px]">Uploading…</span>
+                    ) : (
+                      <>
+                        <Camera className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">Upload Outside Photo</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoUpload}
-              />
+
+              {/* Inside slot */}
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1.5">
+                  Inside <span className="text-red-500">*</span>
+                </p>
+                {form.photo_inside ? (
+                  <div className="relative group aspect-[4/3] rounded-lg overflow-hidden border border-gray-200">
+                    <img src={form.photo_inside} alt="Inside" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, photo_inside: '' }))}
+                      className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    <span className="absolute bottom-1 left-1 text-[9px] font-bold bg-gray-800/70 text-white px-1.5 py-0.5 rounded">
+                      INSIDE
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => insideInputRef.current?.click()}
+                    disabled={!!uploadingSlot}
+                    className="w-full aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-colors flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-blue-500 disabled:opacity-50"
+                  >
+                    {uploadingSlot === 'inside' ? (
+                      <span className="text-[10px]">Uploading…</span>
+                    ) : (
+                      <>
+                        <Camera className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">Upload Inside Photo</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
+
+            {uploadError && <p className="text-xs text-red-500 mt-1.5">{uploadError}</p>}
           </div>
 
+          {/* Fields */}
           <div className="grid grid-cols-2 gap-3 mb-3">
             {[
               { key: 'make', label: 'Make', placeholder: 'e.g. Mercedes' },
@@ -206,13 +268,13 @@ export function MyVehiclesClient({
           <div className="flex gap-2 mt-4">
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !!uploadingSlot || !canSave}
               className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving...' : 'Save Vehicle'}
             </button>
             <button
-              onClick={() => { setShowForm(false); setForm(empty); setPhotoPreview('') }}
+              onClick={() => { setShowForm(false); setForm(empty); setError('') }}
               className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700"
             >
               Cancel
@@ -232,10 +294,25 @@ export function MyVehiclesClient({
         <div className="grid gap-4">
           {vehicles.map(v => (
             <div key={v.id} className={`bg-white rounded-xl border ${v.is_active ? 'border-gray-200' : 'border-gray-100 opacity-60'} overflow-hidden`}>
+              {/* Photo strip */}
+              {(v.photo_outside || v.photo_inside || v.photo_url) && (
+                <div className="grid grid-cols-2 gap-1 p-2 pb-0">
+                  {(v.photo_outside || v.photo_url) && (
+                    <div className="relative rounded-lg overflow-hidden aspect-[16/9]">
+                      <img src={v.photo_outside ?? v.photo_url ?? ''} alt="Outside" className="w-full h-full object-cover" />
+                      <span className="absolute bottom-1 left-1 text-[9px] font-bold bg-gray-800/60 text-white px-1.5 py-0.5 rounded">OUTSIDE</span>
+                    </div>
+                  )}
+                  {v.photo_inside && (
+                    <div className="relative rounded-lg overflow-hidden aspect-[16/9]">
+                      <img src={v.photo_inside} alt="Inside" className="w-full h-full object-cover" />
+                      <span className="absolute bottom-1 left-1 text-[9px] font-bold bg-gray-800/60 text-white px-1.5 py-0.5 rounded">INSIDE</span>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex gap-4 p-4">
-                {v.photo_url ? (
-                  <img src={v.photo_url} alt={`${v.make} ${v.model}`} className="w-28 h-20 rounded-lg object-cover flex-shrink-0" />
-                ) : (
+                {!v.photo_outside && !v.photo_url && (
                   <div className="w-28 h-20 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
                     <Car className="w-8 h-8 text-gray-400" />
                   </div>
