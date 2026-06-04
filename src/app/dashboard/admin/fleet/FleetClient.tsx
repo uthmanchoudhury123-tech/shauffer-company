@@ -62,6 +62,8 @@ const emptyForm = {
   colour: '',
   photo_url: '',
   photo_urls: [] as string[],
+  photo_outside: '',
+  photo_inside: '',
   notes: '',
   mot_date: '',
   service_date: '',
@@ -80,9 +82,12 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadingSlot, setUploadingSlot] = useState<'outside' | 'inside' | null>(null)
   const [uploadError, setUploadError] = useState('')
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const outsideInputRef = useRef<HTMLInputElement>(null)
+  const insideInputRef = useRef<HTMLInputElement>(null)
 
   // Models available for the currently selected make
   const availableModels = form.make ? (VEHICLE_MAKES[form.make] ?? []) : []
@@ -125,6 +130,24 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
     })
   }
 
+  async function handleSlotUpload(e: React.ChangeEvent<HTMLInputElement>, slot: 'outside' | 'inside') {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingSlot(slot)
+    setUploadError('')
+    const supabase = createClient()
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path = `fleet/${companyId}/${slot}-${Date.now()}-${safeName}`
+    const { data, error: upErr } = await supabase.storage
+      .from('vehicles')
+      .upload(path, file, { upsert: true, contentType: file.type })
+    if (upErr) { setUploadError(`Upload failed: ${upErr.message}`); setUploadingSlot(null); return }
+    const { data: url } = supabase.storage.from('vehicles').getPublicUrl(path)
+    setForm(f => ({ ...f, [slot === 'outside' ? 'photo_outside' : 'photo_inside']: url.publicUrl }))
+    setUploadingSlot(null)
+    e.target.value = ''
+  }
+
   const filtered = vehicles.filter(v =>
     v.registration.toLowerCase().includes(search.toLowerCase()) ||
     v.make.toLowerCase().includes(search.toLowerCase()) ||
@@ -152,6 +175,8 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
       colour: v.colour ?? '',
       photo_url: v.photo_url ?? '',
       photo_urls: (v as any).photo_urls ?? (v.photo_url ? [v.photo_url] : []),
+      photo_outside: (v as any).photo_outside ?? '',
+      photo_inside: (v as any).photo_inside ?? '',
       notes: v.notes ?? '',
       mot_date: v.mot_date ?? '',
       service_date: v.service_date ?? '',
@@ -163,7 +188,8 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
   }
 
   async function handleSave() {
-    if (!form.photo_urls.length) { setError('Please upload at least one photo of the vehicle.'); return }
+    if (!form.photo_outside) { setError('Please upload an outside photo of the vehicle.'); return }
+    if (!form.photo_inside)  { setError('Please upload an inside photo of the vehicle.'); return }
     setSaving(true)
     setError('')
     const supabase = createClient()
@@ -177,8 +203,10 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
       road_tax_date: form.road_tax_date || null,
       insurance_date: form.insurance_date || null,
       colour: form.colour || null,
-      photo_url: form.photo_urls[0] || null,
+      photo_url: form.photo_outside || form.photo_urls[0] || null,
       photo_urls: form.photo_urls.length ? form.photo_urls : null,
+      photo_outside: form.photo_outside || null,
+      photo_inside: form.photo_inside || null,
       notes: form.notes || null,
     }
 
@@ -206,7 +234,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
     if (!err) setVehicles(prev => prev.filter(v => v.id !== id))
   }
 
-  const canSave = !!form.make && !!form.model && !!form.registration && form.photo_urls.length > 0
+  const canSave = !!form.make && !!form.model && !!form.registration && !!form.photo_outside && !!form.photo_inside
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl">
@@ -342,72 +370,99 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingVehicle ? 'Edit Vehicle' : 'Add Vehicle'} size="lg">
         <div className="space-y-4">
 
-          {/* Vehicle photos — 1 required, up to 7 */}
+          {/* Vehicle Photos — Outside + Inside (both required) */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-medium text-gray-700">
-                Vehicle Photos <span className="text-red-500">*</span>
-                <span className="text-gray-400 font-normal ml-1">(1 required, up to {MAX_PHOTOS})</span>
-              </label>
-              <span className="text-xs text-gray-400">{form.photo_urls.length}/{MAX_PHOTOS}</span>
-            </div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Vehicle Photos <span className="text-red-500">*</span>
+            </label>
+            <p className="text-xs text-gray-400 mb-3">
+              Both an outside <em>and</em> inside photo are required before saving.
+            </p>
 
-            {/* Hidden file input — multiple allowed */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handlePhotoUpload}
-              disabled={uploading}
-            />
+            {/* Hidden inputs */}
+            <input ref={outsideInputRef} type="file" accept="image/*" className="hidden"
+              onChange={e => handleSlotUpload(e, 'outside')} disabled={!!uploadingSlot} />
+            <input ref={insideInputRef}  type="file" accept="image/*" className="hidden"
+              onChange={e => handleSlotUpload(e, 'inside')}  disabled={!!uploadingSlot} />
 
-            <div className="grid grid-cols-4 gap-2">
-              {/* Existing photos */}
-              {form.photo_urls.map((url, i) => (
-                <div key={url} className="relative group aspect-[4/3] rounded-lg overflow-hidden border border-gray-200">
-                  <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
-                  {/* Primary badge */}
-                  {i === 0 && (
-                    <span className="absolute top-1 left-1 text-[9px] font-bold bg-blue-600 text-white px-1.5 py-0.5 rounded">
-                      MAIN
+            <div className="grid grid-cols-2 gap-4">
+              {/* Outside slot */}
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1.5">
+                  Outside <span className="text-red-500">*</span>
+                </p>
+                {form.photo_outside ? (
+                  <div className="relative group aspect-[4/3] rounded-lg overflow-hidden border border-gray-200">
+                    <img src={form.photo_outside} alt="Outside" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, photo_outside: '' }))}
+                      className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    <span className="absolute bottom-1 left-1 text-[9px] font-bold bg-gray-800/70 text-white px-1.5 py-0.5 rounded">
+                      OUTSIDE
                     </span>
-                  )}
-                  {/* Remove button */}
+                  </div>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => removePhoto(i)}
-                    className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => outsideInputRef.current?.click()}
+                    disabled={!!uploadingSlot}
+                    className="w-full aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-colors flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-blue-500 disabled:opacity-50"
                   >
-                    <X className="w-3 h-3" />
+                    {uploadingSlot === 'outside' ? (
+                      <span className="text-[10px]">Uploading…</span>
+                    ) : (
+                      <>
+                        <Camera className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">Upload Outside Photo</span>
+                      </>
+                    )}
                   </button>
-                </div>
-              ))}
+                )}
+              </div>
 
-              {/* Add photo slot */}
-              {form.photo_urls.length < MAX_PHOTOS && (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-colors flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-blue-500 disabled:opacity-50"
-                >
-                  {uploading ? (
-                    <span className="text-[10px]">Uploading…</span>
-                  ) : (
-                    <>
-                      <Camera className="w-5 h-5" />
-                      <span className="text-[10px] font-medium">Add Photo</span>
-                    </>
-                  )}
-                </button>
-              )}
+              {/* Inside slot */}
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1.5">
+                  Inside <span className="text-red-500">*</span>
+                </p>
+                {form.photo_inside ? (
+                  <div className="relative group aspect-[4/3] rounded-lg overflow-hidden border border-gray-200">
+                    <img src={form.photo_inside} alt="Inside" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, photo_inside: '' }))}
+                      className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    <span className="absolute bottom-1 left-1 text-[9px] font-bold bg-gray-800/70 text-white px-1.5 py-0.5 rounded">
+                      INSIDE
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => insideInputRef.current?.click()}
+                    disabled={!!uploadingSlot}
+                    className="w-full aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-colors flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-blue-500 disabled:opacity-50"
+                  >
+                    {uploadingSlot === 'inside' ? (
+                      <span className="text-[10px]">Uploading…</span>
+                    ) : (
+                      <>
+                        <Camera className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">Upload Inside Photo</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
-            {!form.photo_urls.length && !uploadError && (
-              <p className="text-xs text-red-500 mt-1.5">At least one photo is required</p>
-            )}
             {uploadError && <p className="text-xs text-red-500 mt-1.5">{uploadError}</p>}
           </div>
 
@@ -547,7 +602,7 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || uploading || !canSave}
+              disabled={saving || !!uploadingSlot || !canSave}
               className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
               {saving ? 'Saving...' : editingVehicle ? 'Update Vehicle' : 'Add Vehicle'}
