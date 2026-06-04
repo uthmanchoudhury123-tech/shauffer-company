@@ -16,7 +16,7 @@ export default async function DriverLayout({ children }: { children: React.React
   const role = profile?.role ?? (user.user_metadata?.role as string | undefined)
 
   if (role === 'company_admin')    redirect('/dashboard/admin')
-  if (role === 'freelance_driver') redirect('/dashboard/freelancer')
+  // freelance_driver uses the same /dashboard/driver — no redirect needed
   if (role === 'super_admin')      redirect('/dashboard/superadmin')
 
   // Fetch driver photo
