@@ -12,11 +12,11 @@ export default async function MyVehiclesPage() {
     .eq('id', user.id)
     .single()
 
-  // Show the company's fleet vehicles (company driver uses company vehicles)
+  // Load this driver's own registered vehicles
   const { data: vehicles } = await supabase
-    .from('vehicles')
+    .from('company_driver_vehicles')
     .select('*')
-    .eq('company_id', profile?.company_id ?? '')
+    .eq('driver_id', user.id)
     .order('created_at', { ascending: false })
 
   return (
