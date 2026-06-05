@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Plus, Briefcase, Search, MapPin, Clock, UserCheck,
   ArrowRight, ChevronDown, ChevronUp, X, Repeat,
-  Building2, Globe, User2, MessageSquare, FileText, CreditCard, Star, AlertCircle,
+  Building2, Globe, User2, MessageSquare, FileText, CreditCard, Star, AlertCircle, Route,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
@@ -16,6 +16,15 @@ import { jobStatusColor, carTypeLabel, formatDate, formatCurrency } from '@/lib/
 import type { Job, JobStatus, CarType } from '@/types'
 
 const CAR_TYPES: CarType[] = ['saloon', 'estate', 'suv', 'mpv', 'minibus', 'executive', 'van']
+
+function haversine(lat1?: number | null, lng1?: number | null, lat2?: number | null, lng2?: number | null): number | null {
+  if (!lat1 || !lng1 || !lat2 || !lng2) return null
+  const R = 3958.8
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
 
 // Common models per car category for UK chauffeur industry
 const CAR_MODELS_BY_TYPE: Partial<Record<CarType, string[]>> = {
@@ -582,6 +591,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                           {formatDate(job.job_date)} {job.job_time}
                           {job.end_time && <span>– {job.end_time}</span>}
                         </span>
+                        {(() => { const mi = haversine(job.pickup_lat, job.pickup_lng, job.dropoff_lat, job.dropoff_lng); return mi !== null ? <span className="flex items-center gap-1 text-blue-500 font-medium"><Route className="w-3 h-3" />{mi.toFixed(1)} mi</span> : null })()}
                         {jobIsDaily && (
                           <span className="text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full">
                             Daily{job.hours_per_day ? ` · ${job.hours_per_day}h/day` : ''}{job.number_of_days ? ` · ${job.number_of_days} day${job.number_of_days !== 1 ? 's' : ''}` : ''}

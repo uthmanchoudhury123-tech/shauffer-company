@@ -5,13 +5,22 @@ import { useRouter } from 'next/navigation'
 import {
   Briefcase, MapPin, Clock, CheckCircle, Star,
   AlertCircle, PlayCircle, Car, Navigation, NavigationOff,
-  TrendingUp, Wallet, ChevronRight, FileText, User, AlertTriangle,
+  TrendingUp, Wallet, ChevronRight, FileText, User, AlertTriangle, Route,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
 import { PushNotificationSetup } from '@/components/PushNotificationSetup'
 import { jobStatusColor, formatDate, formatCurrency, carTypeLabel } from '@/lib/utils'
 import type { Job, AvailabilityStatus } from '@/types'
+
+function haversine(lat1?: number | null, lng1?: number | null, lat2?: number | null, lng2?: number | null): number | null {
+  if (!lat1 || !lng1 || !lat2 || !lng2) return null
+  const R = 3958.8
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
 
 interface DriverProfile {
   availability_status: string
@@ -345,6 +354,9 @@ export function DriverDashboardClient({ driverName, driverProfile, jobs: initial
               <MapPin className="w-4 h-4 flex-shrink-0" />{activeJob.dropoff_address}
             </div>
           </div>
+          {(() => { const mi = haversine(activeJob.pickup_lat, activeJob.pickup_lng, activeJob.dropoff_lat, activeJob.dropoff_lng); return mi !== null ? (
+            <p className="flex items-center gap-1 text-xs text-blue-200 mb-2"><Route className="w-3.5 h-3.5" />{mi.toFixed(1)} mi</p>
+          ) : null })()}
           {activeJob.notes && <p className="text-sm text-blue-200 italic mb-4">"{activeJob.notes}"</p>}
           <div className="flex gap-2">
             {activeJob.status === 'awaiting_confirmation' ? (
@@ -389,9 +401,10 @@ export function DriverDashboardClient({ driverName, driverProfile, jobs: initial
             </div>
           </div>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 text-xs text-gray-400">
+            <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
               <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{formatDate(nextJob.job_date)} at {nextJob.job_time}</span>
               {nextJob.price > 0 && <span className="font-semibold text-gray-700">{formatCurrency(nextJob.price)}</span>}
+              {(() => { const mi = haversine(nextJob.pickup_lat, nextJob.pickup_lng, nextJob.dropoff_lat, nextJob.dropoff_lng); return mi !== null ? <span className="flex items-center gap-1 text-blue-500 font-medium"><Route className="w-3 h-3" />{mi.toFixed(1)} mi</span> : null })()}
             </div>
             <div className="flex gap-2">
               <a
@@ -423,9 +436,10 @@ export function DriverDashboardClient({ driverName, driverProfile, jobs: initial
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800 truncate">{job.pickup_address} → {job.dropoff_address}</p>
-                    <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                    <div className="flex items-center gap-3 text-xs text-gray-400 mt-1 flex-wrap">
                       <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatDate(job.job_date)} at {job.job_time}</span>
                       {job.price > 0 && <span className="font-semibold text-gray-600">{formatCurrency(job.price)}</span>}
+                      {(() => { const mi = haversine(job.pickup_lat, job.pickup_lng, job.dropoff_lat, job.dropoff_lng); return mi !== null ? <span className="flex items-center gap-1 text-blue-500 font-medium"><Route className="w-3 h-3" />{mi.toFixed(1)} mi</span> : null })()}
                     </div>
                   </div>
                   <div className="flex gap-1.5">
