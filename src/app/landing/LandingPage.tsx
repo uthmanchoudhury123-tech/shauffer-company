@@ -144,7 +144,7 @@ export function LandingPage() {
           <div data-reveal data-delay="0"
             className="inline-flex items-center gap-2 border border-blue-500/25 bg-blue-500/8 rounded-full px-4 py-1.5 text-[13px] text-blue-400 font-medium mb-8">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-            Built for the UK chauffeur industry
+            Built for the chauffeur industry
           </div>
 
           {/* Headline */}
@@ -349,7 +349,7 @@ export function LandingPage() {
             <span className="font-semibold text-white">Chauffex</span>
           </div>
           <p className="text-sm text-gray-600">
-            © {new Date().getFullYear()} Chauffex. Built for the UK chauffeur industry.
+            © {new Date().getFullYear()} Chauffex. Built for the chauffeur industry.
           </p>
           <div className="flex items-center gap-5 text-sm text-gray-600">
             <Link href="/auth/login" className="hover:text-gray-300 transition-colors">Sign in</Link>
