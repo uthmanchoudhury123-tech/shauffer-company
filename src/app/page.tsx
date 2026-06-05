@@ -1,16 +1,17 @@
-// Root page — redirected by middleware once auth state is known.
-// Shows a minimal loading/brand screen while the redirect happens.
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { LandingPage } from './landing/LandingPage'
 
 export default async function RootPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  // Guest — show landing page
   if (!user) {
-    redirect('/auth/login')
+    return <LandingPage />
   }
 
+  // Logged-in — redirect to correct dashboard
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('role')
