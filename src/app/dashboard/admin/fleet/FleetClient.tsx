@@ -12,7 +12,7 @@ import {
 } from '@/lib/utils'
 import type { Vehicle, CarType, VehicleStatus } from '@/types'
 
-const CAR_TYPES: CarType[] = ['saloon', 'estate', 'suv', 'mpv', 'minibus', 'executive', 'van']
+const CAR_TYPES: CarType[] = ['saloon', 'estate', 'suv', 'mpv', 'minibus', 'executive', 'van', 'hybrid', 'electric']
 const STATUSES: VehicleStatus[] = ['available', 'on_job', 'off_road']
 
 // Makes → Models map for UK chauffeur industry
@@ -464,6 +464,50 @@ export function FleetClient({ vehicles: initial, companyId }: FleetClientProps) 
             </div>
 
             {uploadError && <p className="text-xs text-red-500 mt-1.5">{uploadError}</p>}
+          </div>
+
+          {/* Gallery Photos (optional, up to 5 extra) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-700">Gallery Photos</label>
+                <p className="text-xs text-gray-400">Add up to {MAX_PHOTOS} additional photos for clients to view</p>
+              </div>
+              <span className="text-xs text-gray-400">{form.photo_urls.length}/{MAX_PHOTOS}</span>
+            </div>
+            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
+              onChange={handlePhotoUpload} disabled={uploading} />
+            <div className="flex flex-wrap gap-2">
+              {form.photo_urls.map((url, i) => (
+                <div key={i} className="relative group w-20 h-16 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0">
+                  <img src={url} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              ))}
+              {form.photo_urls.length < MAX_PHOTOS && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="w-20 h-16 rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-colors flex flex-col items-center justify-center gap-0.5 text-gray-400 hover:text-blue-500 disabled:opacity-50 flex-shrink-0"
+                >
+                  {uploading ? (
+                    <span className="text-[9px]">Uploading…</span>
+                  ) : (
+                    <>
+                      <Camera className="w-4 h-4" />
+                      <span className="text-[9px] font-medium">Add photos</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Make & Model dropdowns */}

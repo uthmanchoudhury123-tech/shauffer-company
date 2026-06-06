@@ -4,8 +4,9 @@ import { useState, useRef } from 'react'
 import { Camera, Save, CheckCircle2, Star, Car, Shield, Phone, Upload, X, AlertTriangle, FileText, Calendar, Wrench } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { carTypeLabel } from '@/lib/utils'
+import { PhoneVerification } from '@/components/ui/PhoneVerification'
 
-const CAR_TYPES = ['saloon','estate','suv','mpv','minibus','executive','van']
+const CAR_TYPES = ['saloon','estate','suv','mpv','minibus','executive','van','hybrid','electric']
 
 interface Profile { full_name: string; email: string }
 interface Driver {
@@ -270,8 +271,11 @@ export function DriverProfileClient({
               className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Your full name" />
           </Field>
           <Field label={<span className="flex items-center gap-1.5"><Phone className="w-3 h-3 text-gray-400" /> Phone</span>}>
-            <input value={phone} onChange={e => setPhone(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="+44 7700 900000" />
+            <PhoneVerification
+              defaultPhone={phone}
+              alreadyVerified={!!(driver as any)?.phone_verified && !!phone}
+              onVerified={(verifiedPhone) => setPhone(verifiedPhone)}
+            />
           </Field>
         </div>
         <Field label="Email">

@@ -64,6 +64,7 @@ export function AvailableJobsClient({
   driverId,
   companyId,
   hasVehicles,
+  mapboxToken = '',
 }: {
   jobs: Job[]
   allOpenJobs: Job[]
@@ -72,6 +73,7 @@ export function AvailableJobsClient({
   driverId: string
   companyId: string | null
   hasVehicles: boolean
+  mapboxToken?: string
 }) {
   const [applications, setApplications] = useState<Application[]>(myApplications)
   const [message, setMessage] = useState('')
@@ -417,6 +419,26 @@ export function AvailableJobsClient({
                     ))
                   )}
                 </div>
+
+                {/* Route map — shown when pickup/dropoff coords are available */}
+                {mapboxToken && job.pickup_lat && job.pickup_lng && job.dropoff_lat && job.dropoff_lng && !isDaily && (() => {
+                  const mapUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/` +
+                    `pin-s-a+16a34a(${job.pickup_lng},${job.pickup_lat}),` +
+                    `pin-s-b+dc2626(${job.dropoff_lng},${job.dropoff_lat})/` +
+                    `auto/560x200@2x?padding=50&access_token=${mapboxToken}`
+                  const miles = haversine(job.pickup_lat, job.pickup_lng, job.dropoff_lat, job.dropoff_lng)
+                  return (
+                    <div className="rounded-xl overflow-hidden border border-gray-200 relative">
+                      <img src={mapUrl} alt="Route map" className="w-full object-cover" style={{ height: 180 }} />
+                      {miles !== null && (
+                        <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm text-xs font-semibold text-gray-700 px-2.5 py-1 rounded-full border border-gray-200 flex items-center gap-1">
+                          <Route className="w-3 h-3 text-blue-500" />
+                          {miles.toFixed(1)} mi
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {/* Key Info */}
                 <div className="grid grid-cols-2 gap-3">

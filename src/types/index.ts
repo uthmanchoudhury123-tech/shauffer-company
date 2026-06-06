@@ -33,7 +33,7 @@ export interface Company {
 // ---- Vehicle / Fleet ----
 
 export type VehicleStatus = 'available' | 'on_job' | 'off_road'
-export type CarType = 'saloon' | 'estate' | 'suv' | 'mpv' | 'minibus' | 'executive' | 'van'
+export type CarType = 'saloon' | 'estate' | 'suv' | 'mpv' | 'minibus' | 'executive' | 'van' | 'hybrid' | 'electric'
 
 export interface Vehicle {
   id: string

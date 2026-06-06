@@ -110,6 +110,7 @@ export default async function AvailableJobsPage() {
       driverId={user.id}
       companyId={profile?.company_id ?? null}
       hasVehicles={(companyVehicles ?? []).length > 0}
+      mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? ''}
     />
   )
 }

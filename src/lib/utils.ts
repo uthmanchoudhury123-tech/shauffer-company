@@ -123,6 +123,8 @@ export function carTypeLabel(type: string): string {
     minibus: 'Minibus',
     executive: 'Executive',
     van: 'Van',
+    hybrid: 'Hybrid / Eco',
+    electric: 'Electric / EV',
   }
   return labels[type] ?? type
 }

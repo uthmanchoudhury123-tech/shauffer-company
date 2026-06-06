@@ -113,6 +113,35 @@ export async function proxy(request: NextRequest) {
       url.pathname = '/onboarding/company'
       return NextResponse.redirect(url)
     }
+
+    // Subscription gating: if company subscription has lapsed, redirect to billing
+    // Allow /dashboard/admin/billing itself so they can resubscribe
+    if (
+      profile?.role === 'company_admin' &&
+      profile?.company_id &&
+      !pathname.startsWith('/dashboard/admin/billing') &&
+      !pathname.startsWith('/api/')
+    ) {
+      const { data: company } = await supabase
+        .from('companies')
+        .select('subscription_status, trial_ends_at')
+        .eq('id', profile.company_id)
+        .maybeSingle()
+
+      if (company) {
+        const status = company.subscription_status ?? 'trialing'
+        const trialExpired = status === 'trialing' &&
+          company.trial_ends_at &&
+          new Date(company.trial_ends_at) < new Date()
+        const lapsed = status === 'canceled' || status === 'expired' || trialExpired
+
+        if (lapsed) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/dashboard/admin/billing'
+          return NextResponse.redirect(url)
+        }
+      }
+    }
   }
 
   // Driver accessing their dashboard — check onboarding is complete
