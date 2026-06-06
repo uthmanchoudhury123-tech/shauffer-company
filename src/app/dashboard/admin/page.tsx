@@ -55,8 +55,9 @@ export default async function AdminOverviewPage() {
   const completedJobs = jobs?.filter(j => j.status === 'completed') ?? []
   const completedToday = completedJobs.filter(j => j.job_date === today).length
 
-  // Revenue = client_price (what company charges), Cost = price (paid to driver)
-  const clientPrice = (j: any) => j.client_price ?? 0
+  // Revenue = client_price if set, else fall back to price (job value)
+  // Cost = price (what's paid to driver)
+  const clientPrice = (j: any) => j.client_price ?? j.price ?? 0
   const driverCost  = (j: any) => j.price ?? 0
   const profit      = (j: any) => clientPrice(j) - driverCost(j)
 
@@ -162,7 +163,7 @@ export default async function AdminOverviewPage() {
       </div>
 
       {/* Profit & Cost strip */}
-      {revenueAllTime > 0 && (
+      {completedJobs.length > 0 && (
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-green-50 rounded-xl border border-green-100 p-4">
             <p className="text-xs font-medium text-green-700 mb-1">Total Profit</p>
@@ -191,7 +192,7 @@ export default async function AdminOverviewPage() {
           <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-blue-500" /> Revenue — Last 6 Months
           </h2>
-          {revenueAllTime === 0 ? (
+          {completedJobs.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-6">No completed jobs yet</p>
           ) : (
             <>
