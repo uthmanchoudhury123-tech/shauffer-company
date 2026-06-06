@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { LocationAutocomplete } from '@/components/ui/LocationAutocomplete'
+// LocationCoords type used via onSelectCoords prop
 import { ChatModal } from '@/components/ui/ChatModal'
 import { jobStatusColor, carTypeLabel, formatDate, formatCurrency } from '@/lib/utils'
 import type { Job, JobStatus, CarType } from '@/types'
@@ -136,6 +137,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
   const [expandedJob, setExpandedJob] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [stopCoords, setStopCoords] = useState<Record<number, { lat: number; lng: number }>>({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -274,6 +276,9 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       return { ...f, route_legs: legs }
     })
   }
+  function updateLegCoords(idx: number, coords: { lat: number; lng: number }) {
+    setStopCoords(prev => ({ ...prev, [idx]: coords }))
+  }
   function addLeg() {
     setForm(f => ({ ...f, route_legs: [...f.route_legs, ''] }))
   }
@@ -320,6 +325,10 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       created_by: createdBy,
       pickup_address: stops[0],
       dropoff_address: isDaily ? stops[0] : stops[stops.length - 1],
+      pickup_lat: stopCoords[0]?.lat ?? null,
+      pickup_lng: stopCoords[0]?.lng ?? null,
+      dropoff_lat: stopCoords[form.route_legs.length - 1]?.lat ?? null,
+      dropoff_lng: stopCoords[form.route_legs.length - 1]?.lng ?? null,
       route_legs: isDaily ? stops : stops,
       job_date: form.job_date,
       job_time: form.job_time,
@@ -372,6 +381,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
     setSaving(false)
     setModalOpen(false)
     setForm(emptyForm)
+    setStopCoords({})
     router.refresh()
   }
 
@@ -802,6 +812,7 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
                     <LocationAutocomplete
                       value={stop}
                       onChange={v => updateLeg(idx, v)}
+                      onSelectCoords={coords => updateLegCoords(idx, coords)}
                       placeholder={
                         isDaily ? 'Enter job location...' :
                         idx === 0 ? 'Pickup address...' :

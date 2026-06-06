@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, MapPin, X, Search, Globe, User2, Briefcase, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { LocationAutocomplete } from '@/components/ui/LocationAutocomplete'
+import { LocationAutocomplete, type LocationCoords } from '@/components/ui/LocationAutocomplete'
 import { carTypeLabel } from '@/lib/utils'
 import type { CarType } from '@/types'
 
@@ -43,6 +43,7 @@ const emptyForm = {
 export function PostJobClient({ driverId, companyId, driverName }: PostJobClientProps) {
   const router = useRouter()
   const [form, setForm] = useState(emptyForm)
+  const [stopCoords, setStopCoords] = useState<Record<number, { lat: number; lng: number }>>({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -82,6 +83,10 @@ export function PostJobClient({ driverId, companyId, driverName }: PostJobClient
     })
   }
 
+  function updateLegCoords(idx: number, coords: LocationCoords) {
+    setStopCoords(prev => ({ ...prev, [idx]: { lat: coords.lat, lng: coords.lng } }))
+  }
+
   function addLeg() {
     setForm(f => ({ ...f, route_legs: [...f.route_legs, ''] }))
   }
@@ -114,6 +119,10 @@ export function PostJobClient({ driverId, companyId, driverName }: PostJobClient
       posted_by_driver_id: driverId,
       pickup_address: stops[0],
       dropoff_address: stops[stops.length - 1],
+      pickup_lat: stopCoords[0]?.lat ?? null,
+      pickup_lng: stopCoords[0]?.lng ?? null,
+      dropoff_lat: stopCoords[form.route_legs.length - 1]?.lat ?? null,
+      dropoff_lng: stopCoords[form.route_legs.length - 1]?.lng ?? null,
       route_legs: stops,
       job_date: form.job_date,
       job_time: form.job_time,
@@ -140,6 +149,7 @@ export function PostJobClient({ driverId, companyId, driverName }: PostJobClient
     setSuccess(true)
     setSaving(false)
     setForm(emptyForm)
+    setStopCoords({})
     setTimeout(() => { setSuccess(false); router.refresh() }, 3000)
   }
 
@@ -186,6 +196,7 @@ export function PostJobClient({ driverId, companyId, driverName }: PostJobClient
                   <LocationAutocomplete
                     value={stop}
                     onChange={v => updateLeg(idx, v)}
+                    onSelectCoords={coords => updateLegCoords(idx, coords)}
                     placeholder={
                       idx === 0 ? 'Pickup address...' :
                       idx === form.route_legs.length - 1 ? 'Drop-off address...' :

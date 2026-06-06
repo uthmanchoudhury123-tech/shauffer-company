@@ -7,18 +7,27 @@ interface Suggestion {
   id: string
   place_name: string
   text: string
+  lat: number
+  lng: number
+}
+
+export interface LocationCoords {
+  address: string
+  lat: number
+  lng: number
 }
 
 interface Props {
   value: string
   onChange: (value: string) => void
+  onSelectCoords?: (coords: LocationCoords) => void
   placeholder?: string
   className?: string
 }
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
-export function LocationAutocomplete({ value, onChange, placeholder = 'Search address...', className = '' }: Props) {
+export function LocationAutocomplete({ value, onChange, onSelectCoords, placeholder = 'Search address...', className = '' }: Props) {
   const [query, setQuery] = useState(value)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading] = useState(false)
@@ -59,6 +68,8 @@ export function LocationAutocomplete({ value, onChange, placeholder = 'Search ad
         id: f.id,
         place_name: f.place_name,
         text: f.text,
+        lng: f.geometry?.coordinates?.[0] ?? 0,
+        lat: f.geometry?.coordinates?.[1] ?? 0,
       })))
       setOpen(true)
     } catch {
@@ -79,6 +90,9 @@ export function LocationAutocomplete({ value, onChange, placeholder = 'Search ad
   function handleSelect(suggestion: Suggestion) {
     setQuery(suggestion.place_name)
     onChange(suggestion.place_name)
+    if (onSelectCoords) {
+      onSelectCoords({ address: suggestion.place_name, lat: suggestion.lat, lng: suggestion.lng })
+    }
     setSuggestions([])
     setOpen(false)
   }
