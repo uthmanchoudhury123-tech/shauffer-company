@@ -372,7 +372,7 @@ export function DriverDashboardClient({ driverName, driverProfile, jobs: initial
               </button>
             )}
             <a
-              href={`/dashboard/driver/sign?name=Passenger&job=${activeJob.id}`}
+              href={`/dashboard/driver/sign?job=${activeJob.id}`}
               className="px-4 py-2 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-400 flex items-center gap-1.5"
             >
               <FileText className="w-4 h-4" /> Meet &amp; Greet Sign

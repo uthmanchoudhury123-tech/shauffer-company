@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { MapPin, Calendar, Star, Clock, CheckCircle2, Wallet, Search, Route } from 'lucide-react'
+import Link from 'next/link'
+import { MapPin, Calendar, Star, Clock, CheckCircle2, Wallet, Search, Route, FileText } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
 function haversine(lat1?: number | null, lng1?: number | null, lat2?: number | null, lng2?: number | null): number | null {
@@ -152,6 +153,12 @@ export function DriverHistoryClient({ jobs, reviewMap }: Props) {
                     <p className="text-sm font-bold text-gray-900">
                       {formatCurrency(job.price)}{priceLabel(job) && <span className="text-xs font-normal text-gray-400">{priceLabel(job)}</span>}
                     </p>
+                    <Link
+                      href={`/dashboard/driver/invoice?job=${job.id}`}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-full transition-colors"
+                    >
+                      <FileText className="w-3 h-3" /> Invoice
+                    </Link>
                     {isAwaiting ? (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
                         <Clock className="w-3 h-3" /> Awaiting confirmation

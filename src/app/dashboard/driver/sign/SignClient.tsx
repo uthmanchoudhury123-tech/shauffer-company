@@ -11,6 +11,8 @@ interface Job {
   job_time: string
   notes: string | null
   price: number
+  client_name?: string | null
+  client_phone?: string | null
 }
 
 export function SignClient({
@@ -25,7 +27,8 @@ export function SignClient({
   job: Job | null
 }) {
   const [passengerName, setPassengerName] = useState(
-    job?.notes?.match(/passenger[:\s]+([^\n,]+)/i)?.[1]?.trim() ?? ''
+    job?.client_name?.trim() ||
+    job?.notes?.match(/passenger[:\s]+([^\n,]+)/i)?.[1]?.trim() || ''
   )
   const [flightNumber, setFlightNumber] = useState(
     job?.notes?.match(/flight[:\s]+([^\n,\s]+)/i)?.[1]?.trim() ?? ''
