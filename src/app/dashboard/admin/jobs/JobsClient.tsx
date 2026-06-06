@@ -217,6 +217,12 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
     const supabase = createClient()
     await supabase.from('jobs').update({ status: 'completed' }).eq('id', jobId)
     setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'completed' as JobStatus } : j))
+    // Auto-generate invoice number (fire and forget — don't block UI)
+    fetch('/api/invoice/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId, sendEmail: true }),
+    }).catch(() => {})
     // Then pay if there's a driver
     if (hasDriver) {
       const res = await fetch('/api/stripe/jobs/pay-driver', {
@@ -421,6 +427,14 @@ export function JobsClient({ jobs: initial, drivers, companyId, createdBy }: Job
       .select()
       .single()
     if (data) setJobs(prev => prev.map(j => j.id === jobId ? data : j))
+    // Auto-generate invoice when marked completed
+    if (status === 'completed') {
+      fetch('/api/invoice/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId, sendEmail: true }),
+      }).catch(() => {})
+    }
   }
 
   async function viewApplications(job: Job) {

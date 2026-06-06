@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Printer, Download, Send, ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Printer, Send, ArrowLeft, Plus, Trash2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
 interface LineItem { description: string; qty: number; rate: number }
@@ -10,11 +10,16 @@ interface Props {
   job: any
   company: any
   driverName: string | null
+  backHref?: string
 }
 
-export function InvoiceClient({ job, company, driverName }: Props) {
-  const invoiceNumber = `INV-${new Date().getFullYear()}-${String(job.id).slice(0, 6).toUpperCase()}`
-  const issuedDate = new Date().toLocaleDateString('en-GB')
+export function InvoiceClient({ job, company, driverName, backHref }: Props) {
+  const [invoiceNumber, setInvoiceNumber] = useState<string>(
+    job.invoice_number ?? ''
+  )
+  const issuedDate = job.invoice_sent_at
+    ? new Date(job.invoice_sent_at).toLocaleDateString('en-GB')
+    : new Date().toLocaleDateString('en-GB')
   const dueDate = new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-GB')
 
   const defaultItems: LineItem[] = [{
@@ -27,18 +32,31 @@ export function InvoiceClient({ job, company, driverName }: Props) {
   const [vatRate, setVatRate] = useState(0)
   const [notes, setNotes] = useState('')
   const [sending, setSending] = useState(false)
-  const [sent, setSent] = useState(false)
+  const [sent, setSent] = useState(!!job.invoice_sent_at)
+  const [sendError, setSendError] = useState('')
+  const [generating, setGenerating] = useState(false)
+
+  // Auto-generate invoice number on mount if not already set
+  useEffect(() => {
+    if (!job.invoice_number) {
+      setGenerating(true)
+      fetch('/api/invoice/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: job.id, sendEmail: false }),
+      })
+        .then(r => r.json())
+        .then(d => { if (d.invoiceNumber) setInvoiceNumber(d.invoiceNumber) })
+        .finally(() => setGenerating(false))
+    }
+  }, [job.id, job.invoice_number])
 
   const subtotal = items.reduce((s, i) => s + i.qty * i.rate, 0)
   const vatAmount = subtotal * (vatRate / 100)
   const total = subtotal + vatAmount
 
-  function addItem() {
-    setItems(prev => [...prev, { description: '', qty: 1, rate: 0 }])
-  }
-  function removeItem(idx: number) {
-    setItems(prev => prev.filter((_, i) => i !== idx))
-  }
+  function addItem() { setItems(prev => [...prev, { description: '', qty: 1, rate: 0 }]) }
+  function removeItem(idx: number) { setItems(prev => prev.filter((_, i) => i !== idx)) }
   function updateItem(idx: number, field: keyof LineItem, value: string) {
     setItems(prev => prev.map((item, i) =>
       i === idx ? { ...item, [field]: field === 'description' ? value : Number(value) } : item
@@ -47,26 +65,53 @@ export function InvoiceClient({ job, company, driverName }: Props) {
 
   async function sendInvoice() {
     if (!job.client_email) {
-      alert('No client email on this job. Edit the job to add one.')
+      setSendError('No client email on this job. Edit the job to add one.')
       return
     }
     setSending(true)
-    // Placeholder — in production this would call an email API
-    await new Promise(r => setTimeout(r, 800))
-    setSent(true)
-    setSending(false)
+    setSendError('')
+    try {
+      const res = await fetch('/api/invoice/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: job.id, vatRate, sendEmail: true }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to send')
+      if (data.invoiceNumber) setInvoiceNumber(data.invoiceNumber)
+      if (data.emailSent) {
+        setSent(true)
+      } else {
+        setSendError('Invoice saved but email not sent — add RESEND_API_KEY to Vercel env vars to enable email.')
+      }
+    } catch (e: any) {
+      setSendError(e.message)
+    } finally {
+      setSending(false)
+    }
   }
+
+  const back = backHref ?? (job.company_id ? '/dashboard/admin/jobs' : '/dashboard/driver/history')
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-8">
       {/* Toolbar */}
-      <div className="max-w-3xl mx-auto mb-4 flex items-center gap-3 print:hidden">
-        <a
-          href="/dashboard/admin/jobs"
-          className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Jobs
+      <div className="max-w-3xl mx-auto mb-4 flex items-center gap-3 print:hidden flex-wrap">
+        <a href={back} className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900">
+          <ArrowLeft className="w-4 h-4" /> Back
         </a>
+
+        {/* Invoice number badge */}
+        <span className="text-sm font-mono font-semibold text-gray-700 bg-white border border-gray-200 px-3 py-1 rounded-lg">
+          {generating ? 'Generating…' : (invoiceNumber || '—')}
+        </span>
+
+        {sent && (
+          <span className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Sent to client
+          </span>
+        )}
+
         <div className="ml-auto flex gap-2">
           <button
             onClick={() => window.print()}
@@ -77,16 +122,23 @@ export function InvoiceClient({ job, company, driverName }: Props) {
           <button
             onClick={sendInvoice}
             disabled={sending || sent}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               sent
-                ? 'bg-green-100 text-green-700'
+                ? 'bg-green-100 text-green-700 cursor-default'
                 : 'bg-blue-600 hover:bg-blue-700 text-white'
             }`}
           >
             <Send className="w-4 h-4" />
-            {sent ? 'Sent!' : sending ? 'Sending...' : 'Send to Client'}
+            {sent ? 'Sent!' : sending ? 'Sending…' : 'Send to Client'}
           </button>
         </div>
+
+        {sendError && (
+          <div className="w-full flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            {sendError}
+          </div>
+        )}
       </div>
 
       {/* Invoice */}
@@ -104,7 +156,9 @@ export function InvoiceClient({ job, company, driverName }: Props) {
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold text-white">INVOICE</p>
-            <p className="text-sm text-gray-400 mt-1">{invoiceNumber}</p>
+            <p className="text-sm text-gray-400 mt-1">
+              {generating ? 'Generating…' : (invoiceNumber || '—')}
+            </p>
           </div>
         </div>
 
@@ -162,16 +216,14 @@ export function InvoiceClient({ job, company, driverName }: Props) {
                       />
                     </td>
                     <td className="py-2 px-4">
-                      <input
-                        type="number" min="1"
+                      <input type="number" min="1"
                         className="w-14 text-right text-sm text-gray-800 bg-transparent border-none outline-none focus:ring-0 print:pointer-events-none"
                         value={item.qty}
                         onChange={e => updateItem(idx, 'qty', e.target.value)}
                       />
                     </td>
                     <td className="py-2 px-4">
-                      <input
-                        type="number" min="0" step="0.01"
+                      <input type="number" min="0" step="0.01"
                         className="w-20 text-right text-sm text-gray-800 bg-transparent border-none outline-none focus:ring-0 print:pointer-events-none"
                         value={item.rate}
                         onChange={e => updateItem(idx, 'rate', e.target.value)}
@@ -191,11 +243,7 @@ export function InvoiceClient({ job, company, driverName }: Props) {
                 ))}
               </tbody>
             </table>
-
-            <button
-              onClick={addItem}
-              className="mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 print:hidden"
-            >
+            <button onClick={addItem} className="mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 print:hidden">
               <Plus className="w-3.5 h-3.5" /> Add line item
             </button>
           </div>
@@ -209,11 +257,8 @@ export function InvoiceClient({ job, company, driverName }: Props) {
               </div>
               <div className="flex justify-between text-sm text-gray-600 items-center">
                 <span>VAT
-                  <select
-                    value={vatRate}
-                    onChange={e => setVatRate(Number(e.target.value))}
-                    className="ml-1 text-xs border border-gray-200 rounded px-1 print:hidden"
-                  >
+                  <select value={vatRate} onChange={e => setVatRate(Number(e.target.value))}
+                    className="ml-1 text-xs border border-gray-200 rounded px-1 print:hidden">
                     <option value={0}>0%</option>
                     <option value={5}>5%</option>
                     <option value={20}>20%</option>
@@ -232,8 +277,7 @@ export function InvoiceClient({ job, company, driverName }: Props) {
           {/* Notes */}
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Notes</p>
-            <textarea
-              rows={2}
+            <textarea rows={2}
               className="w-full text-sm text-gray-600 border border-gray-100 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 print:border-0 print:p-0"
               value={notes}
               onChange={e => setNotes(e.target.value)}
