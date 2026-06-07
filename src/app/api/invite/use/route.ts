@@ -44,16 +44,26 @@ export async function POST(request: Request) {
     .update({ company_id: invite.company_id, role })
     .eq('id', uid)
 
-  // Create the driver record
+  // Fetch full name from user_profiles (written by the auth trigger on signup)
+  const { data: profile } = await admin
+    .from('user_profiles')
+    .select('full_name')
+    .eq('id', uid)
+    .single()
+
+  // Create/update the driver record
+  // onboarding_complete: true — invited drivers skip standalone onboarding,
+  // they're already linked to a company via the invite.
   await admin
     .from('drivers')
     .upsert({
       id: uid,
       company_id: invite.company_id,
-      full_name: '',           // will be filled from user_profiles
+      full_name: profile?.full_name ?? '',
       driver_category: 'company',
       availability_status: 'offline',
       car_type: 'saloon',
+      onboarding_complete: true,
     }, { onConflict: 'id' })
 
   // Mark the invite as used
